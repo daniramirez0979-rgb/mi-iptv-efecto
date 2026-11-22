@@ -1,2 +1,2 @@
-# mi-iptv-efecto
-Mi IPTV Efecto Android
+# README.md
+Mi IPTV Efecto - Proyecto Android
