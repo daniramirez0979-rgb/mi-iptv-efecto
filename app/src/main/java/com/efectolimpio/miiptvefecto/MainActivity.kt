@@ -643,7 +643,7 @@ fun MiIptvApp() {
                                     loading = true; status = "Cargando películas…"
                                     try {
                                         val json = withContext(Dispatchers.IO) {
-                                            if (authenticated) providerCatalog(playlistUrl, "get_vod_streams")
+                                            if (authenticated) customerCatalog(customerUsername, customerPassword, "get_vod_streams")
                                             else downloadText("$host/player_api.php?username=${Uri.encode(username)}&password=${Uri.encode(password)}&action=get_vod_streams")
                                         }
                                         movies = parseCatalog(json)
