@@ -436,6 +436,43 @@ fun MiIptvApp() {
                         )
                         Section.LIVE -> {
                             SectionHeader("TV EN VIVO", "Tus canales disponibles")
+                            if (profiles.size > 1) {
+                                Spacer(Modifier.height(8.dp))
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    profiles.forEach { profile ->
+                                        if (profile.id == activeProfileId) {
+                                            Button(onClick = {}, enabled = false, modifier = Modifier.weight(1f)) {
+                                                Text(if (profile.name.contains("secund", true)) "SECUNDARIA ✓" else "PRIMARIA ✓")
+                                            }
+                                        } else {
+                                            OutlinedButton(
+                                                onClick = {
+                                                    scope.launch {
+                                                        loading = true
+                                                        status = "Cambiando a ${profile.name}…"
+                                                        try {
+                                                            val loaded = withContext(Dispatchers.IO) { loadProfileChannels(profile) }
+                                                            require(loaded.isNotEmpty()) { "La lista no contiene canales." }
+                                                            player.stop()
+                                                            selected = null
+                                                            channels = loaded
+                                                            activeProfileId = profile.id
+                                                            playlistUrl = profile.address
+                                                            status = "Lista activa: ${profile.name} (${loaded.size} canales)"
+                                                        } catch (e: Exception) {
+                                                            status = "No se pudo activar ${profile.name}: ${e.message ?: "revisá la conexión"}"
+                                                        } finally { loading = false }
+                                                    }
+                                                },
+                                                modifier = Modifier.weight(1f),
+                                                enabled = !loading
+                                            ) {
+                                                Text(if (profile.name.contains("secund", true)) "USAR SECUNDARIA" else "USAR PRIMARIA")
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                             Spacer(Modifier.height(8.dp))
                             OutlinedTextField(search, { search = it }, modifier = Modifier.fillMaxWidth(),
                                 label = { Text("Buscar canal") }, singleLine = true)
