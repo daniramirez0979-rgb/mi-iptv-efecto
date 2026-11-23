@@ -87,6 +87,8 @@ fun MiIptvApp() {
     var search by remember { mutableStateOf("") }
     var favorites by remember { mutableStateOf(setOf<String>()) }
     var movies by remember { mutableStateOf(emptyList<CatalogItem>()) }
+    var moviesLoaded by remember { mutableStateOf(false) }
+    var catalogLoading by remember { mutableStateOf(false) }
     var series by remember { mutableStateOf(emptyList<CatalogItem>()) }
     var episodes by remember { mutableStateOf(emptyList<Channel>()) }
     var selectedSeries by remember { mutableStateOf<CatalogItem?>(null) }
@@ -103,19 +105,22 @@ fun MiIptvApp() {
     var customerPassword by remember { mutableStateOf("") }
     var rememberCustomerLogin by remember { mutableStateOf(false) }
     var updateDialog by remember { mutableStateOf<Triple<String, String, String>?>(null) }
-    LaunchedEffect(section, authenticated, customerUsername, customerPassword, playlistUrl) {
-        if (authenticated && section == Section.MOVIES && movies.isEmpty() && !loading) {
-            loading = true
+    // El catálogo VOD usa su propio estado de carga: no queda bloqueado
+    // si el usuario entra a Películas mientras otra operación está ocupada.
+    LaunchedEffect(section, authenticated, customerUsername, customerPassword, moviesLoaded) {
+        if (authenticated && section == Section.MOVIES && !moviesLoaded && !catalogLoading) {
+            moviesLoaded = true
+            catalogLoading = true
             status = "Cargando catálogo de películas…"
             try {
                 val json = withContext(Dispatchers.IO) {
                     customerCatalog(customerUsername, customerPassword, "get_vod_streams")
                 }
                 movies = parseCatalog(json)
-                status = if (movies.isEmpty()) "El servidor no devolvió películas. Revisaremos el catálogo." else "Películas cargadas: ${movies.size}"
+                status = if (movies.isEmpty()) "El proveedor respondió, pero no se pudieron interpretar las películas." else "Películas cargadas: ${movies.size}"
             } catch (e: Exception) {
                 status = "Error al cargar películas: ${e.message ?: "intentá nuevamente"}"
-            } finally { loading = false }
+            } finally { catalogLoading = false }
         }
     }
 
@@ -552,8 +557,14 @@ fun MiIptvApp() {
                         }
                         Section.MOVIES -> {
                             SectionHeader("PELÍCULAS", "Catálogo de películas")
-                            if (movies.isEmpty()) EmptyState("Catálogo no disponible", loading ? "Buscando películas del proveedor…" : status)
-                            else LazyColumn(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                            if (movies.isEmpty()) {
+                                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                                    EmptyState("Catálogo no disponible", if (catalogLoading) "Buscando películas del proveedor…" else status)
+                                    if (authenticated && !catalogLoading) {
+                                        TextButton(onClick = { moviesLoaded = false }) { Text("REINTENTAR CARGA") }
+                                    }
+                                }
+                            } else LazyColumn(verticalArrangement = Arrangement.spacedBy(7.dp)) {
                                 items(movies) { item ->
                                     CatalogRow(item.name, item.category) {
                                         val ext = item.extension.ifBlank { "mp4" }
@@ -1253,4 +1264,3 @@ private fun fetchAuthorizedAppUpdate(): QuadUpdate? {
     } finally { connection.disconnect() }
 }
 private data class QuadUpdate(val first: Int, val second: String, val third: String, val fourth: String)
-
