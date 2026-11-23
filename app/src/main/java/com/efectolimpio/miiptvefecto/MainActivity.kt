@@ -91,6 +91,10 @@ fun MiIptvApp() {
     var activeProfileId by remember { mutableStateOf("") }
     var autoBackup by remember { mutableStateOf(true) }
     var failoverBusy by remember { mutableStateOf(false) }
+    var authenticated by remember { mutableStateOf(false) }
+    var loginBusy by remember { mutableStateOf(false) }
+    var loginError by remember { mutableStateOf("") }
+
 
     val securePrefs = remember {
         val masterKey = MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build()
@@ -222,6 +226,8 @@ fun MiIptvApp() {
         onBackground = White, onSurface = White, secondary = Cyan
     )) {
         Row(Modifier.fillMaxSize().background(Navy)) {
+            if (authenticated) {
+
             // Navigation rail works well on wide Android TV screens and tablets.
             if (!isFullscreen) Column(
                 Modifier.width(76.dp).fillMaxHeight().background(Color(0xFF06131F)).padding(vertical = 16.dp),
@@ -480,6 +486,47 @@ fun MiIptvApp() {
                 Spacer(Modifier.height(8.dp))
                 Text("Usá únicamente listas y servicios que tengas autorización para reproducir.", color = Color.Gray, fontSize = 9.sp)
             }
+            } else {
+                LoginScreen(
+                    busy = loginBusy,
+                    error = loginError,
+                    onLogin = { user, pass ->
+                        scope.launch {
+                            loginBusy = true
+                            loginError = ""
+                            try {
+                                val session = withContext(Dispatchers.IO) { customerLogin(user, pass) }
+                                val loaded = session.playlists.mapIndexed { index, address ->
+                                    PlaylistProfile("server_$index", if (index == 0) "Lista principal" else "Lista secundaria", "M3U", address)
+                                }
+                                require(loaded.isNotEmpty()) { "El servicio no tiene listas configuradas." }
+                                var loadedChannels = emptyList<Channel>()
+                                var active: PlaylistProfile? = null
+                                for (profile in loaded) {
+                                    try {
+                                        val candidate = withContext(Dispatchers.IO) { loadProfileChannels(profile) }
+                                        if (candidate.isNotEmpty()) {
+                                            loadedChannels = candidate
+                                            active = profile
+                                            break
+                                        }
+                                    } catch (_: Exception) { }
+                                }
+                                require(active != null && loadedChannels.isNotEmpty()) { "No se pudo cargar ninguna lista. Probá más tarde o contactá al administrador." }
+                                profiles = loaded
+                                activeProfileId = active!!.id
+                                playlistUrl = active!!.address
+                                channels = loadedChannels
+                                section = Section.HOME
+                                status = "Bienvenido ${user} · ${loadedChannels.size} canales"
+                                authenticated = true
+                            } catch (e: Exception) {
+                                loginError = e.message ?: "No se pudo iniciar sesión."
+                            } finally { loginBusy = false }
+                        }
+                    }
+                )
+            }
         }
     }
 }
@@ -658,6 +705,66 @@ private fun sectionIcon(section: Section) = when (section) {
     Section.SERIES -> Icons.Default.VideoLibrary
     Section.FAVORITES -> Icons.Default.Star
     Section.SETTINGS -> Icons.Default.Settings
+}
+
+
+private data class CustomerSession(val playlists: List<String>, val expiresAt: String)
+
+private fun customerLogin(username: String, password: String): CustomerSession {
+    val endpoint = "https://zumorvkalqehzztvosce.supabase.co/functions/v1/customer-auth"
+    val apiKey = "sb_publishable_feT-R_JGExnqwyIrJgw4TQ_H3I0PVXS"
+    val connection = URL(endpoint).openConnection() as HttpURLConnection
+    connection.requestMethod = "POST"
+    connection.connectTimeout = 20000
+    connection.readTimeout = 30000
+    connection.doOutput = true
+    connection.setRequestProperty("Content-Type", "application/json")
+    connection.setRequestProperty("apikey", apiKey)
+    connection.setRequestProperty("Accept", "application/json")
+    val body = org.json.JSONObject().put("username", username).put("password", password).toString()
+    return try {
+        connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+        val code = connection.responseCode
+        val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+        val response = stream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+        val json = org.json.JSONObject(response)
+        if (code !in 200..299 || !json.optBoolean("ok")) {
+            error(json.optString("error").ifBlank { "Usuario o contraseña incorrectos." })
+        }
+        val array = json.optJSONArray("playlists") ?: org.json.JSONArray()
+        val urls = (0 until array.length()).mapNotNull { i ->
+            array.optString(i).takeIf { it.startsWith("http://") || it.startsWith("https://") }
+        }
+        require(urls.isNotEmpty()) { "No hay listas disponibles para tu cuenta." }
+        CustomerSession(urls, json.optString("expires_at"))
+    } finally { connection.disconnect() }
+}
+
+@Composable private fun LoginScreen(
+    busy: Boolean,
+    error: String,
+    onLogin: (String, String) -> Unit
+) {
+    var username by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    Box(Modifier.fillMaxSize().background(Navy).padding(24.dp), contentAlignment = Alignment.Center) {
+        Card(Modifier.fillMaxWidth().widthIn(max = 420.dp), colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(22.dp)) {
+            Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Icon(Icons.Default.LiveTv, null, tint = Cyan, modifier = Modifier.size(54.dp))
+                Text("EFECTO TV", color = White, fontSize = 27.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
+                Text("Presentado por Efecto Limpio", color = Muted, fontSize = 12.sp)
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(username, { username = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Usuario") }, singleLine = true)
+                OutlinedTextField(password, { password = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Contraseña") }, singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation())
+                if (error.isNotBlank()) Text(error, color = Color(0xFFFF8A80), fontSize = 12.sp)
+                Button(onClick = { onLogin(username.trim(), password) }, enabled = !busy && username.isNotBlank() && password.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+                    if (busy) CircularProgressIndicator(Modifier.size(18.dp), color = Navy, strokeWidth = 2.dp)
+                    else Text("INGRESAR", fontWeight = FontWeight.Bold)
+                }
+                Text("Contratá la mejor TV digital · WhatsApp 3765-149583", color = Muted, fontSize = 10.sp)
+            }
+        }
+    }
 }
 
 private fun downloadText(address: String): String {
