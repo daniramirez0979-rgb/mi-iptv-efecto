@@ -750,6 +750,9 @@ fun MiIptvApp() {
                                 activeProfileId = active!!.id
                                 playlistUrl = active!!.address
                                 channels = loadedChannels
+                                movies = emptyList()
+                                moviesLoaded = false
+                                catalogLoading = false
                                 section = Section.HOME
                                 status = "Bienvenido ${user} · ${loadedChannels.size} canales"
                                 authenticated = true
