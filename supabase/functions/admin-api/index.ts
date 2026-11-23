@@ -27,10 +27,10 @@ Deno.serve(async req=>{
    if(error)throw error;return json({primary_url:data?.primary_url||"",secondary_url:data?.secondary_url||"",updated_at:data?.updated_at||null});
   }
   if(a==="set_global_lists"){
-   const primary=String(b.primary_url||"").trim(),secondary=String(b.secondary_url||"").trim();
-   if(!validUrl(primary)||!validUrl(secondary))return json({error:"Las listas deben ser URL http:// o https:// válidas."},400);
+   const primary=String(b.primary_url||"").trim();
+   if(!validUrl(primary))return json({error:"Las listas deben ser URL http:// o https:// válidas."},400);
    if(!primary&&!secondary)return json({error:"Ingresá al menos una lista."},400);
-   const {error}=await db.from("tv_playlist_settings").upsert({id:1,primary_url:primary||null,secondary_url:secondary||null,updated_at:new Date().toISOString()},{onConflict:"id"});
+   const {error}=await db.from("tv_playlist_settings").upsert({id:1,primary_url:primary||null,secondary_url:null,updated_at:new Date().toISOString()},{onConflict:"id"});
    if(error)throw error;return json({ok:true});
   }
   if(a==="list"){const {data,error}=await db.from("tv_customers").select("id,username,active,expires_at,created_at").order("created_at",{ascending:false});if(error)throw error;return json({users:data})}
