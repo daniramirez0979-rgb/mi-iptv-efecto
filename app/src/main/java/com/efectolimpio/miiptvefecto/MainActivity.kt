@@ -373,33 +373,43 @@ fun MiIptvApp() {
                             player.playWhenReady = true
                         }
                     }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = { isFullscreen = false; player.stop(); selected = null }) { Text("← Canales") }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            TextButton(onClick = { isFullscreen = false; player.stop(); selected = null }, modifier = Modifier.weight(1f),
+                                contentPadding = PaddingValues(horizontal = 2.dp, vertical = 6.dp)) { Text("← CANALES", fontSize = 12.sp, maxLines = 1) }
                             TextButton(onClick = {
                                 val index = channels.indexOfFirst { it.url == selected?.url }
                                 if (index > 0) selected = channels[index - 1]
-                            }, enabled = channels.indexOfFirst { it.url == selected?.url } > 0) { Text("ANTERIOR") }
+                            }, enabled = channels.indexOfFirst { it.url == selected?.url } > 0, modifier = Modifier.weight(1f),
+                                contentPadding = PaddingValues(horizontal = 2.dp, vertical = 6.dp)) { Text("ANTERIOR", fontSize = 12.sp, maxLines = 1) }
                             TextButton(onClick = {
                                 val index = channels.indexOfFirst { it.url == selected?.url }
                                 if (index >= 0 && index < channels.lastIndex) selected = channels[index + 1]
-                            }, enabled = channels.indexOfFirst { it.url == selected?.url } in 0 until channels.lastIndex) { Text("SIGUIENTE") }
+                            }, enabled = channels.indexOfFirst { it.url == selected?.url } in 0 until channels.lastIndex, modifier = Modifier.weight(1f),
+                                contentPadding = PaddingValues(horizontal = 2.dp, vertical = 6.dp)) { Text("SIGUIENTE", fontSize = 12.sp, maxLines = 1) }
                         }
-                        TextButton(onClick = {
-                            player.stop()
-                            selected?.let { channel ->
-                                val uri = Uri.parse(channel.url)
-                                val item = MediaItem.Builder().setUri(uri).build()
-                                player.setMediaItem(item); player.prepare(); player.playWhenReady = true
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                            OutlinedButton(onClick = {
+                                player.stop()
+                                selected?.let { channel ->
+                                    val uri = Uri.parse(channel.url)
+                                    val item = MediaItem.Builder().setUri(uri).build()
+                                    player.setMediaItem(item); player.prepare(); player.playWhenReady = true
+                                }
+                            }, contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp)) {
+                                Icon(Icons.Default.Refresh, null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("REINTENTAR", fontSize = 12.sp)
                             }
-                        }) { Text("REINTENTAR") }
-                        IconButton(onClick = { isFullscreen = !isFullscreen }) {
-                            Icon(
-                                if (isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
-                                contentDescription = if (isFullscreen) "Salir de pantalla completa" else "Pantalla completa",
-                                tint = Cyan,
-                                modifier = Modifier.size(30.dp)
-                            )
+                            Spacer(Modifier.width(8.dp))
+                            IconButton(onClick = { isFullscreen = !isFullscreen }, modifier = Modifier.size(48.dp)) {
+                                Icon(
+                                    if (isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
+                                    contentDescription = if (isFullscreen) "Salir de pantalla completa" else "Pantalla completa",
+                                    tint = Cyan,
+                                    modifier = Modifier.size(30.dp)
+                                )
+                            }
                         }
                     }
                     if (!isFullscreen && channels.isNotEmpty()) {
