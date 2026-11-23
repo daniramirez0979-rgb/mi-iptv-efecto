@@ -141,8 +141,14 @@ fun MiIptvApp() {
             .setAllowCrossProtocolRedirects(true)
     }
     val player = remember {
+        val loadControl = androidx.media3.exoplayer.DefaultLoadControl.Builder()
+            .setBufferDurationsMs(15000, 60000, 2500, 6000)
+            .build()
         ExoPlayer.Builder(context)
+            .setLoadControl(loadControl)
             .setMediaSourceFactory(DefaultMediaSourceFactory(context).setDataSourceFactory(httpFactory))
+            .setSeekBackIncrementMs(10000)
+            .setSeekForwardIncrementMs(10000)
             .build()
     }
     LaunchedEffect(isFullscreen) {
@@ -268,7 +274,7 @@ fun MiIptvApp() {
                             resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                             setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
                         }
-                    }, modifier = Modifier.fillMaxWidth().weight(1f))
+                    }, modifier = Modifier.fillMaxWidth().weight(if (!isFullscreen && channels.isNotEmpty()) 0.58f else 1f))
                     LaunchedEffect(selected) {
                         selected?.let { channel ->
                             val uri = Uri.parse(channel.url)
@@ -281,12 +287,40 @@ fun MiIptvApp() {
                             player.playWhenReady = true
                         }
                     }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        TextButton(onClick = { isFullscreen = false; player.stop(); selected = null }) { Text("← Volver") }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = { isFullscreen = false; player.stop(); selected = null }) { Text("← Canales") }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            TextButton(onClick = {
+                                val index = channels.indexOfFirst { it.url == selected?.url }
+                                if (index > 0) selected = channels[index - 1]
+                            }, enabled = channels.indexOfFirst { it.url == selected?.url } > 0) { Text("ANTERIOR") }
+                            TextButton(onClick = {
+                                val index = channels.indexOfFirst { it.url == selected?.url }
+                                if (index >= 0 && index < channels.lastIndex) selected = channels[index + 1]
+                            }, enabled = channels.indexOfFirst { it.url == selected?.url } in 0 until channels.lastIndex) { Text("SIGUIENTE") }
+                        }
+                        TextButton(onClick = {
+                            player.stop()
+                            selected?.let { channel ->
+                                val uri = Uri.parse(channel.url)
+                                val item = MediaItem.Builder().setUri(uri).build()
+                                player.setMediaItem(item); player.prepare(); player.playWhenReady = true
+                            }
+                        }) { Text("REINTENTAR") }
                         TextButton(onClick = { isFullscreen = !isFullscreen }) {
                             Icon(if (isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen, null)
                             Spacer(Modifier.width(6.dp))
-                            Text(if (isFullscreen) "Salir de pantalla completa" else "Pantalla completa")
+                            Text(if (isFullscreen) "Salir" else "Pantalla completa")
+                        }
+                    }
+                    if (!isFullscreen && channels.isNotEmpty()) {
+                        Text("CANALES DISPONIBLES  •  ${channels.size}", color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        LazyColumn(Modifier.fillMaxWidth().weight(0.42f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            items(channels) { channel ->
+                                ChannelRow(channel, favorites.contains(channel.url),
+                                    onClick = { selected = channel },
+                                    onFavorite = { favorites = if (favorites.contains(channel.url)) favorites - channel.url else favorites + channel.url })
+                            }
                         }
                     }
                 } else {
