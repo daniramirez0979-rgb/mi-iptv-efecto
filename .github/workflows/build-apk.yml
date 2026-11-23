@@ -5,6 +5,9 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -99,3 +102,11 @@ jobs:
           name: Mi-IPTV-Efecto-APK
           path: "**/app/build/outputs/apk/debug/app-debug.apk"
           if-no-files-found: error
+
+      - name: Publicar actualización para la APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: tv-${{ github.run_number }}
+          name: EFECTO TV ${{ github.run_number }}
+          files: app/build/outputs/apk/debug/app-debug.apk
+          make_latest: true
