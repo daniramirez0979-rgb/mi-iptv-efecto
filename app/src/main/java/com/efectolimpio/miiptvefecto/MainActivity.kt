@@ -353,14 +353,32 @@ fun MiIptvApp() {
                         Spacer(Modifier.height(8.dp))
                     }
                     val activePlayer = player
-                    AndroidView(factory = { ctx ->
-                        PlayerView(ctx).apply {
-                            this.player = activePlayer
-                            useController = true
-                            resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                            setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
+                    Box(
+                        modifier = if (isFullscreen) Modifier.fillMaxSize()
+                            else Modifier.fillMaxWidth().weight(if (channels.isNotEmpty()) 0.68f else 1f)
+                    ) {
+                        AndroidView(factory = { ctx ->
+                            PlayerView(ctx).apply {
+                                this.player = activePlayer
+                                useController = true
+                                resizeMode = if (isFullscreen) AspectRatioFrameLayout.RESIZE_MODE_ZOOM else AspectRatioFrameLayout.RESIZE_MODE_FIT
+                                setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
+                            }
+                        }, update = { view ->
+                            view.resizeMode = if (isFullscreen) AspectRatioFrameLayout.RESIZE_MODE_ZOOM else AspectRatioFrameLayout.RESIZE_MODE_FIT
+                            view.useController = true
+                        }, modifier = Modifier.fillMaxSize())
+                        if (isFullscreen) {
+                            IconButton(
+                                onClick = { isFullscreen = false },
+                                modifier = Modifier.align(Alignment.TopEnd).padding(12.dp)
+                                    .background(Color(0x99000000), CircleShape).size(52.dp)
+                            ) {
+                                Icon(Icons.Default.FullscreenExit, contentDescription = "Salir de pantalla completa",
+                                    tint = Color.White, modifier = Modifier.size(32.dp))
+                            }
                         }
-                    }, modifier = Modifier.fillMaxWidth().weight(if (!isFullscreen && channels.isNotEmpty()) 0.68f else 1f))
+                    }
                     LaunchedEffect(selected) {
                         selected?.let { channel ->
                             val uri = Uri.parse(channel.url)
@@ -373,52 +391,54 @@ fun MiIptvApp() {
                             player.playWhenReady = true
                         }
                     }
-                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                            TextButton(onClick = { isFullscreen = false; player.stop(); selected = null }, modifier = Modifier.weight(1f),
-                                contentPadding = PaddingValues(horizontal = 2.dp, vertical = 6.dp)) { Text("← CANALES", fontSize = 12.sp, maxLines = 1) }
-                            TextButton(onClick = {
-                                val index = channels.indexOfFirst { it.url == selected?.url }
-                                if (index > 0) selected = channels[index - 1]
-                            }, enabled = channels.indexOfFirst { it.url == selected?.url } > 0, modifier = Modifier.weight(1f),
-                                contentPadding = PaddingValues(horizontal = 2.dp, vertical = 6.dp)) { Text("ANTERIOR", fontSize = 12.sp, maxLines = 1) }
-                            TextButton(onClick = {
-                                val index = channels.indexOfFirst { it.url == selected?.url }
-                                if (index >= 0 && index < channels.lastIndex) selected = channels[index + 1]
-                            }, enabled = channels.indexOfFirst { it.url == selected?.url } in 0 until channels.lastIndex, modifier = Modifier.weight(1f),
-                                contentPadding = PaddingValues(horizontal = 2.dp, vertical = 6.dp)) { Text("SIGUIENTE", fontSize = 12.sp, maxLines = 1) }
-                        }
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                            OutlinedButton(onClick = {
-                                player.stop()
-                                selected?.let { channel ->
-                                    val uri = Uri.parse(channel.url)
-                                    val item = MediaItem.Builder().setUri(uri).build()
-                                    player.setMediaItem(item); player.prepare(); player.playWhenReady = true
+                    if (!isFullscreen) {
+                        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                TextButton(onClick = { isFullscreen = false; player.stop(); selected = null }, modifier = Modifier.weight(1f),
+                                    contentPadding = PaddingValues(horizontal = 2.dp, vertical = 6.dp)) { Text("← CANALES", fontSize = 12.sp, maxLines = 1) }
+                                TextButton(onClick = {
+                                    val index = channels.indexOfFirst { it.url == selected?.url }
+                                    if (index > 0) selected = channels[index - 1]
+                                }, enabled = channels.indexOfFirst { it.url == selected?.url } > 0, modifier = Modifier.weight(1f),
+                                    contentPadding = PaddingValues(horizontal = 2.dp, vertical = 6.dp)) { Text("ANTERIOR", fontSize = 12.sp, maxLines = 1) }
+                                TextButton(onClick = {
+                                    val index = channels.indexOfFirst { it.url == selected?.url }
+                                    if (index >= 0 && index < channels.lastIndex) selected = channels[index + 1]
+                                }, enabled = channels.indexOfFirst { it.url == selected?.url } in 0 until channels.lastIndex, modifier = Modifier.weight(1f),
+                                    contentPadding = PaddingValues(horizontal = 2.dp, vertical = 6.dp)) { Text("SIGUIENTE", fontSize = 12.sp, maxLines = 1) }
+                            }
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                                OutlinedButton(onClick = {
+                                    player.stop()
+                                    selected?.let { channel ->
+                                        val uri = Uri.parse(channel.url)
+                                        val item = MediaItem.Builder().setUri(uri).build()
+                                        player.setMediaItem(item); player.prepare(); player.playWhenReady = true
+                                    }
+                                }, contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp)) {
+                                    Icon(Icons.Default.Refresh, null, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("REINTENTAR", fontSize = 12.sp)
                                 }
-                            }, contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp)) {
-                                Icon(Icons.Default.Refresh, null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text("REINTENTAR", fontSize = 12.sp)
-                            }
-                            Spacer(Modifier.width(8.dp))
-                            IconButton(onClick = { isFullscreen = !isFullscreen }, modifier = Modifier.size(48.dp)) {
-                                Icon(
-                                    if (isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
-                                    contentDescription = if (isFullscreen) "Salir de pantalla completa" else "Pantalla completa",
-                                    tint = Cyan,
-                                    modifier = Modifier.size(30.dp)
-                                )
+                                Spacer(Modifier.width(8.dp))
+                                IconButton(onClick = { isFullscreen = !isFullscreen }, modifier = Modifier.size(48.dp)) {
+                                    Icon(
+                                        if (isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
+                                        contentDescription = if (isFullscreen) "Salir de pantalla completa" else "Pantalla completa",
+                                        tint = Cyan,
+                                        modifier = Modifier.size(30.dp)
+                                    )
+                                }
                             }
                         }
-                    }
-                    if (!isFullscreen && channels.isNotEmpty()) {
-                        Text("CANALES DISPONIBLES  •  ${channels.size}", color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        LazyColumn(Modifier.fillMaxWidth().weight(0.32f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            items(channels) { channel ->
-                                ChannelRow(channel, favorites.contains(channel.url),
-                                    onClick = { selected = channel },
-                                    onFavorite = { favorites = if (favorites.contains(channel.url)) favorites - channel.url else favorites + channel.url })
+                        if (!isFullscreen && channels.isNotEmpty()) {
+                            Text("CANALES DISPONIBLES  •  ${channels.size}", color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            LazyColumn(Modifier.fillMaxWidth().weight(0.32f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                items(channels) { channel ->
+                                    ChannelRow(channel, favorites.contains(channel.url),
+                                        onClick = { selected = channel },
+                                        onFavorite = { favorites = if (favorites.contains(channel.url)) favorites - channel.url else favorites + channel.url })
+                                }
                             }
                         }
                     }
