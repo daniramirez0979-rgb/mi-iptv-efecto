@@ -627,12 +627,15 @@ private fun sectionIcon(section: Section) = when (section) {
 
 private fun downloadText(address: String): String {
     val connection = URL(address).openConnection() as HttpURLConnection
-    connection.connectTimeout = 15000
-    connection.readTimeout = 20000
-    connection.setRequestProperty("User-Agent", "MiIPTVEfecto/1.1")
+    connection.connectTimeout = 20000
+    connection.readTimeout = 30000
+    connection.instanceFollowRedirects = true
+    connection.setRequestProperty("User-Agent", "VLC/3.0.20 LibVLC/3.0.20")
+    connection.setRequestProperty("Accept", "*/*")
     return try {
-        if (connection.responseCode !in 200..299) error("Servidor respondió ${connection.responseCode}")
-        connection.inputStream.bufferedReader().use { it.readText() }
+        val code = connection.responseCode
+        if (code !in 200..299) error("El servidor respondió HTTP $code")
+        connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText().removePrefix("\uFEFF") }
     } finally { connection.disconnect() }
 }
 
