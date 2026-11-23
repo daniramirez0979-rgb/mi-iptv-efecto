@@ -624,8 +624,10 @@ fun MiIptvApp() {
                                 scope.launch {
                                     loading = true; status = "Cargando películas…"
                                     try {
-                                        val api = "$host/player_api.php?username=${Uri.encode(username)}&password=${Uri.encode(password)}&action=get_vod_streams"
-                                        val json = withContext(Dispatchers.IO) { downloadText(api) }
+                                        val json = withContext(Dispatchers.IO) {
+                                            if (authenticated) customerCatalog(customerUsername, customerPassword, "get_vod_streams")
+                                            else downloadText("$host/player_api.php?username=${Uri.encode(username)}&password=${Uri.encode(password)}&action=get_vod_streams")
+                                        }
                                         movies = parseCatalog(json)
                                         status = "Películas cargadas: ${movies.size}"
                                     } catch (e: Exception) { status = "Error en películas: ${e.message ?: "verificá la cuenta"}" }
@@ -636,8 +638,10 @@ fun MiIptvApp() {
                                 scope.launch {
                                     loading = true; status = "Cargando series…"
                                     try {
-                                        val api = "$host/player_api.php?username=${Uri.encode(username)}&password=${Uri.encode(password)}&action=get_series"
-                                        val json = withContext(Dispatchers.IO) { downloadText(api) }
+                                        val json = withContext(Dispatchers.IO) {
+                                            if (authenticated) customerCatalog(customerUsername, customerPassword, "get_series")
+                                            else downloadText("$host/player_api.php?username=${Uri.encode(username)}&password=${Uri.encode(password)}&action=get_series")
+                                        }
                                         series = parseCatalog(json)
                                         status = "Series cargadas: ${series.size}"
                                     } catch (e: Exception) { status = "Error en series: ${e.message ?: "verificá la cuenta"}" }
@@ -881,6 +885,32 @@ private fun sectionIcon(section: Section) = when (section) {
 private data class CustomerSession(val playlists: List<String>, val expiresAt: String)
 
 private class CustomerAuthException(val httpCode: Int, message: String) : Exception(message)
+
+private fun customerCatalog(username: String, password: String, action: String): String {
+    require(action == "get_vod_streams" || action == "get_series") { "Catálogo inválido." }
+    val endpoint = "https://zumorvkalqehzztvosce.supabase.co/functions/v1/customer-catalog"
+    val apiKey = "sb_publishable_feT-R_JGExnqwyIrJgw4TQ_H3I0PVXS"
+    val connection = URL(endpoint).openConnection() as HttpURLConnection
+    connection.requestMethod = "POST"
+    connection.connectTimeout = 20000
+    connection.readTimeout = 35000
+    connection.doOutput = true
+    connection.setRequestProperty("Content-Type", "application/json")
+    connection.setRequestProperty("apikey", apiKey)
+    connection.setRequestProperty("Accept", "application/json")
+    val body = org.json.JSONObject().put("username", username).put("password", password).put("action", action).toString()
+    return try {
+        connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+        val code = connection.responseCode
+        val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+        val response = stream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+        if (code !in 200..299) {
+            val message = try { org.json.JSONObject(response).optString("error") } catch (_: Exception) { "" }
+            throw IllegalStateException(message.ifBlank { "No se pudo cargar el catálogo ($code)." })
+        }
+        response
+    } finally { connection.disconnect() }
+}
 
 private fun customerLogin(username: String, password: String): CustomerSession {
     val endpoint = "https://zumorvkalqehzztvosce.supabase.co/functions/v1/customer-auth"
