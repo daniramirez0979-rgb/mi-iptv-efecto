@@ -103,31 +103,18 @@ fun MiIptvApp() {
     var customerPassword by remember { mutableStateOf("") }
     var rememberCustomerLogin by remember { mutableStateOf(false) }
     var updateDialog by remember { mutableStateOf<Triple<String, String, String>?>(null) }
-    LaunchedEffect(section, authenticated, customerUsername, customerPassword, playlistUrl, host, username, password) {
+    LaunchedEffect(section, authenticated, customerUsername, customerPassword, playlistUrl) {
         if (authenticated && section == Section.MOVIES && movies.isEmpty() && !loading) {
             loading = true
-            status = "Cargando películas…"
+            status = "Cargando catálogo de películas…"
             try {
                 val json = withContext(Dispatchers.IO) {
-                    providerCatalog(playlistUrl, "get_vod_streams")
+                    customerCatalog(customerUsername, customerPassword, "get_vod_streams")
                 }
                 movies = parseCatalog(json)
-                status = if (movies.isEmpty()) "El proveedor devolvió el catálogo de películas vacío." else "Películas cargadas: ${movies.size}"
+                status = if (movies.isEmpty()) "El servidor no devolvió películas. Revisaremos el catálogo." else "Películas cargadas: ${movies.size}"
             } catch (e: Exception) {
-                status = "Error en películas: ${e.message ?: "intentá nuevamente"}"
-            } finally { loading = false }
-        }
-        if (authenticated && section == Section.SERIES && series.isEmpty() && !loading) {
-            loading = true
-            status = "Cargando series…"
-            try {
-                val json = withContext(Dispatchers.IO) {
-                    providerCatalog(playlistUrl, "get_series")
-                }
-                series = parseCatalog(json)
-                status = if (series.isEmpty()) "El proveedor devolvió el catálogo de series vacío." else "Series cargadas: ${series.size}"
-            } catch (e: Exception) {
-                status = "Error en series: ${e.message ?: "intentá nuevamente"}"
+                status = "Error al cargar películas: ${e.message ?: "intentá nuevamente"}"
             } finally { loading = false }
         }
     }
@@ -564,8 +551,8 @@ fun MiIptvApp() {
                             }
                         }
                         Section.MOVIES -> {
-                            SectionHeader("PELÍCULAS", "Catálogo VOD")
-                            if (movies.isEmpty()) EmptyState("Catálogo no disponible", "Tu lista M3U/M3U8 carga canales de TV en vivo.")
+                            SectionHeader("PELÍCULAS", "Catálogo de películas")
+                            if (movies.isEmpty()) EmptyState("Catálogo no disponible", loading ? "Buscando películas del proveedor…" : status)
                             else LazyColumn(verticalArrangement = Arrangement.spacedBy(7.dp)) {
                                 items(movies) { item ->
                                     CatalogRow(item.name, item.category) {
@@ -796,7 +783,7 @@ fun MiIptvApp() {
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                HomeTile("SERIES", "Temporadas y episodios", Icons.Default.VideoLibrary, Modifier.weight(1f), onSeries)
+                HomeTile("MI CUENTA", "Acceso administrado", Icons.Default.AccountCircle, Modifier.weight(1f), onSettings)
                 HomeTile("MI CUENTA", "Acceso administrado", Icons.Default.AccountCircle, Modifier.weight(1f), onSettings)
             }
         }
