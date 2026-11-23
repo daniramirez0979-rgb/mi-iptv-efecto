@@ -7,11 +7,11 @@ android {
     namespace = "com.efectolimpio.miiptvefecto"
     compileSdk = 35
     defaultConfig {
-        applicationId = "com.efectolimpio.miiptvefecto.nueva"
+        applicationId = "com.efectolimpio.miiptvefecto.nueva2"
         minSdk = 23
         targetSdk = 35
         versionCode = 4
-        versionName = "1.3"
+        versionName = "1.4"
     }
     buildFeatures { compose = true; buildConfig = true }
 }
