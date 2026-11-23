@@ -191,11 +191,12 @@ fun MiIptvApp() {
     }
     DisposableEffect(Unit) { onDispose { player.release() } }
 
-    // Revalida el acceso sin interrumpir la reproducción ante cortes momentáneos de internet.
+    // Revalida el acceso periódicamente. Un rechazo explícito del servidor corta el acceso
+    // y vuelve a la pantalla de ingreso, sin cerrar la aplicación. Los errores de red no expulsan.
     LaunchedEffect(authenticated, customerUsername, customerPassword) {
         if (authenticated && customerUsername.isNotBlank()) {
             while (true) {
-                delay(300_000)
+                delay(15_000)
                 try {
                     val refreshed = withContext(Dispatchers.IO) { customerLogin(customerUsername, customerPassword) }
                     val updatedProfiles = refreshed.playlists.take(1).map { address ->
@@ -212,9 +213,18 @@ fun MiIptvApp() {
                             if (selected == null) status = "Lista actualizada · ${channels.size} canales"
                         }
                     }
+                } catch (e: CustomerAuthException) {
+                    if (e.httpCode == 401 || e.httpCode == 403) {
+                        player.stop()
+                        selected = null
+                        channels = emptyList()
+                        authenticated = false
+                        loginError = "Tu acceso fue bloqueado o venció. Contactá al administrador."
+                        status = loginError
+                        break
+                    }
                 } catch (_: Exception) {
-                    // Un fallo temporal no significa que el usuario esté bloqueado.
-                    // Se conserva el canal, la lista y la sesión; se reintenta en el próximo ciclo.
+                    // Cortes de internet/errores temporales: mantener reproducción y reintentar.
                 }
             }
         }
@@ -870,6 +880,8 @@ private fun sectionIcon(section: Section) = when (section) {
 
 private data class CustomerSession(val playlists: List<String>, val expiresAt: String)
 
+private class CustomerAuthException(val httpCode: Int, message: String) : Exception(message)
+
 private fun customerLogin(username: String, password: String): CustomerSession {
     val endpoint = "https://zumorvkalqehzztvosce.supabase.co/functions/v1/customer-auth"
     val apiKey = "sb_publishable_feT-R_JGExnqwyIrJgw4TQ_H3I0PVXS"
@@ -889,7 +901,7 @@ private fun customerLogin(username: String, password: String): CustomerSession {
         val response = stream.bufferedReader(Charsets.UTF_8).use { it.readText() }
         val json = org.json.JSONObject(response)
         if (code !in 200..299 || !json.optBoolean("ok")) {
-            error(json.optString("error").ifBlank { "Usuario o contraseña incorrectos." })
+            throw CustomerAuthException(code, json.optString("error").ifBlank { "Usuario o contraseña incorrectos." })
         }
         val array = json.optJSONArray("playlists") ?: org.json.JSONArray()
         val urls = (0 until array.length()).mapNotNull { i ->
