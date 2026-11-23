@@ -220,7 +220,6 @@ fun MiIptvApp() {
                     Column {
                         Text("MI IPTV", color = White, fontSize = 24.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
                         Text("EFECTO", color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 4.sp)
-                        Text("CONTRATÁ LA MEJOR TV DIGITAL AL 3765149583", color = White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     }
                     Spacer(Modifier.weight(1f))
                     Text(if (channels.isEmpty()) "SIN LISTA CARGADA" else "${channels.size} CANALES", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
@@ -264,7 +263,7 @@ fun MiIptvApp() {
                         }
                         Section.MOVIES -> {
                             SectionHeader("PELÍCULAS", "Catálogo VOD")
-                            if (movies.isEmpty()) EmptyState("Catálogo no disponible", "Tu lista M3U/M3U8 carga canales de TV en vivo.")
+                            if (movies.isEmpty()) EmptyState("Catálogo sin cargar", "Conectá Xtream Codes desde Configuración y cargá películas.")
                             else LazyColumn(verticalArrangement = Arrangement.spacedBy(7.dp)) {
                                 items(movies) { item ->
                                     CatalogRow(item.name, item.category) {
@@ -277,7 +276,7 @@ fun MiIptvApp() {
                         Section.SERIES -> {
                             SectionHeader(selectedSeries?.name ?: "SERIES", if (selectedSeries == null) "Catálogo de series" else "Elegí un episodio")
                             if (selectedSeries == null) {
-                                if (series.isEmpty()) EmptyState("Catálogo no disponible", "Tu lista M3U/M3U8 carga canales de TV en vivo.")
+                                if (series.isEmpty()) EmptyState("Catálogo sin cargar", "Conectá Xtream Codes desde Configuración y cargá series.")
                                 else LazyColumn(verticalArrangement = Arrangement.spacedBy(7.dp)) {
                                     items(series) { item -> CatalogRow(item.name, item.category) {
                                         selectedSeries = item
@@ -313,10 +312,11 @@ fun MiIptvApp() {
                             profiles = profiles, activeProfileId = activeProfileId, autoBackup = autoBackup,
                             onAutoBackup = { autoBackup = it },
                             onSaveProfile = { name ->
-                                val address = playlistUrl.trim()
-                                if (address.isBlank()) status = "Pegá primero la URL completa de tu lista M3U/M3U8."
+                                val isXtream = host.isNotBlank() && username.isNotBlank() && password.isNotBlank()
+                                val address = if (isXtream) host.trim().trimEnd('/') else playlistUrl.trim()
+                                if (address.isBlank()) status = "Ingresá primero una lista M3U o una cuenta Xtream."
                                 else {
-                                    val profile = PlaylistProfile(java.util.UUID.randomUUID().toString(), name.ifBlank { "Lista ${profiles.size + 1}" }, "M3U", address)
+                                    val profile = PlaylistProfile(java.util.UUID.randomUUID().toString(), name.ifBlank { "Lista ${profiles.size + 1}" }, if (isXtream) "XTREAM" else "M3U", address, if (isXtream) username else "", if (isXtream) password else "")
                                     profiles = profiles + profile
                                     activeProfileId = profile.id
                                     status = "Lista de respaldo guardada: ${profile.name}"
@@ -329,7 +329,8 @@ fun MiIptvApp() {
                                         val loaded = withContext(Dispatchers.IO) { loadProfileChannels(profile) }
                                         require(loaded.isNotEmpty()) { "La lista no contiene canales." }
                                         channels = loaded; activeProfileId = profile.id; selected = null
-                                        playlistUrl = profile.address; host = ""; username = ""; password = ""
+                                        if (profile.type == "XTREAM") { host = profile.address; username = profile.username; password = profile.password; playlistUrl = "" }
+                                        else { playlistUrl = profile.address; host = ""; username = ""; password = "" }
                                         status = "Lista activa: ${profile.name} (${loaded.size} canales)"; section = Section.LIVE
                                     } catch (e: Exception) { status = "No se pudo activar ${profile.name}: ${e.message ?: "error"}" }
                                     loading = false
@@ -528,6 +529,24 @@ fun MiIptvApp() {
             }
         }
         item {
+            Card(colors = CardDefaults.cardColors(containerColor = Panel)) {
+                Column(Modifier.fillMaxWidth().padding(14.dp)) {
+                    Text("XTREAM CODES", color = Cyan, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    OutlinedTextField(host, setHost, label = { Text("Servidor HTTPS") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    OutlinedTextField(username, setUsername, label = { Text("Usuario") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    OutlinedTextField(password, setPassword, label = { Text("Contraseña") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    Spacer(Modifier.height(8.dp))
+                    Button(onClick = onXtream, enabled = !loading, modifier = Modifier.fillMaxWidth()) { Text("Conectar y cargar canales") }
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = onLoadMovies, enabled = !loading, modifier = Modifier.weight(1f)) { Text("Cargar películas") }
+                        OutlinedButton(onClick = onLoadSeries, enabled = !loading, modifier = Modifier.weight(1f)) { Text("Cargar series") }
+                    }
+                    Text("El acceso se guarda cifrado en este dispositivo.", color = Muted, fontSize = 10.sp)
+                }
+            }
+        }
+        item {
             var profileName by remember { mutableStateOf("") }
             Card(colors = CardDefaults.cardColors(containerColor = Panel)) {
                 Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -547,7 +566,7 @@ fun MiIptvApp() {
                         Row(Modifier.fillMaxWidth().background(Panel2, RoundedCornerShape(10.dp)).padding(9.dp), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text(profile.name, color = White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                Text("Lista M3U/M3U8", color = Muted, fontSize = 10.sp)
+                                Text(if (profile.type == "XTREAM") "Cuenta Xtream" else "Lista M3U/M3U8", color = Muted, fontSize = 10.sp)
                                 if (profile.id == activeProfileId) Text("ACTIVA", color = Cyan, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                             }
                             TextButton(onClick = { onActivateProfile(profile) }, enabled = !loading) { Text("Usar") }
