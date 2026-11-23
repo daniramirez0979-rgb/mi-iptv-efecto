@@ -1,6 +1,8 @@
 package com.efectolimpio.miiptvefecto
 
 import android.net.Uri
+import android.content.pm.ActivityInfo
+import android.view.View
 import android.os.Bundle
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
@@ -28,6 +30,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.common.MimeTypes
+import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import androidx.compose.ui.viewinterop.AndroidView
 import kotlinx.coroutines.Dispatchers
@@ -69,6 +75,7 @@ fun MiIptvApp() {
     var status by remember { mutableStateOf("Agregá tu lista M3U/M3U8 o conectá tu cuenta.") }
     var channels by remember { mutableStateOf(emptyList<Channel>()) }
     var selected by remember { mutableStateOf<Channel?>(null) }
+    var isFullscreen by remember { mutableStateOf(false) }
     var section by remember { mutableStateOf(Section.HOME) }
     var loading by remember { mutableStateOf(false) }
     var showXtream by remember { mutableStateOf(false) }
@@ -126,7 +133,27 @@ fun MiIptvApp() {
         }
     }
 
-    val player = remember { ExoPlayer.Builder(context).build() }
+    val httpFactory = remember {
+        DefaultHttpDataSource.Factory()
+            .setUserAgent("VLC/3.0.20 LibVLC/3.0.20")
+            .setConnectTimeoutMs(20000)
+            .setReadTimeoutMs(30000)
+            .setAllowCrossProtocolRedirects(true)
+    }
+    val player = remember {
+        ExoPlayer.Builder(context)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(context).setDataSourceFactory(httpFactory))
+            .build()
+    }
+    LaunchedEffect(isFullscreen) {
+        val activity = context as? android.app.Activity
+        activity?.requestedOrientation = if (isFullscreen) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        activity?.window?.decorView?.systemUiVisibility = if (isFullscreen) (
+            View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+            View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+        ) else View.SYSTEM_UI_FLAG_VISIBLE
+    }
     DisposableEffect(Unit) { onDispose { player.release() } }
 
     // Si falla un canal, intenta el mismo canal en la siguiente lista guardada.
@@ -190,7 +217,7 @@ fun MiIptvApp() {
     )) {
         Row(Modifier.fillMaxSize().background(Navy)) {
             // Navigation rail works well on wide Android TV screens and tablets.
-            Column(
+            if (!isFullscreen) Column(
                 Modifier.width(76.dp).fillMaxHeight().background(Color(0xFF06131F)).padding(vertical = 16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -215,7 +242,7 @@ fun MiIptvApp() {
                 Text("1.1", color = Muted, fontSize = 10.sp)
             }
 
-            Column(Modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 14.dp)) {
+            Column(Modifier.fillMaxSize().then(if (isFullscreen) Modifier else Modifier.padding(horizontal = 18.dp, vertical = 14.dp))) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column {
                         Text("MI IPTV", color = White, fontSize = 24.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
@@ -228,14 +255,39 @@ fun MiIptvApp() {
                 Spacer(Modifier.height(16.dp))
 
                 if (selected != null) {
-                    Text(selected!!.name, color = White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(10.dp))
-                    AndroidView(factory = { ctx -> PlayerView(ctx).apply { player = this@MiIptvApp.player; useController = true } },
-                        modifier = Modifier.fillMaxWidth().weight(1f))
-                    LaunchedEffect(selected) {
-                        selected?.let { player.setMediaItem(MediaItem.fromUri(it.url)); player.prepare(); player.playWhenReady = true }
+                    if (!isFullscreen) {
+                        Text(selected!!.name, color = White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(8.dp))
                     }
-                    TextButton(onClick = { player.stop(); selected = null }) { Text("← Volver") }
+                    val activePlayer = player
+                    AndroidView(factory = { ctx ->
+                        PlayerView(ctx).apply {
+                            this.player = activePlayer
+                            useController = true
+                            resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                            setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
+                        }
+                    }, modifier = Modifier.fillMaxWidth().weight(1f))
+                    LaunchedEffect(selected) {
+                        selected?.let { channel ->
+                            val uri = Uri.parse(channel.url)
+                            val builder = MediaItem.Builder().setUri(uri)
+                            val path = uri.path.orEmpty().lowercase()
+                            if (path.endsWith(".m3u8")) builder.setMimeType(MimeTypes.APPLICATION_M3U8)
+                            if (path.endsWith(".mpd")) builder.setMimeType(MimeTypes.APPLICATION_MPD)
+                            player.setMediaItem(builder.build())
+                            player.prepare()
+                            player.playWhenReady = true
+                        }
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        TextButton(onClick = { isFullscreen = false; player.stop(); selected = null }) { Text("← Volver") }
+                        TextButton(onClick = { isFullscreen = !isFullscreen }) {
+                            Icon(if (isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen, null)
+                            Spacer(Modifier.width(6.dp))
+                            Text(if (isFullscreen) "Salir de pantalla completa" else "Pantalla completa")
+                        }
+                    }
                 } else {
                     when (section) {
                         Section.HOME -> HomeScreen(
