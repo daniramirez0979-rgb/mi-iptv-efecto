@@ -14,7 +14,7 @@ Deno.serve(async req=>{
   if(error){console.error("verify_customer_login failed",error.message);return json({error:"No se pudo validar el acceso"},503)}
   const customer=Array.isArray(data)?data[0]:data;
   if(!customer?.valid)return json({error:customer?.reason??"Usuario o contraseña incorrectos"},401);
-  const playlists=[customer.playlist_url,customer.backup_url].filter(v=>typeof v==="string"&&/^https?:\/\//i.test(v));
+  const playlists=[customer.playlist_url].filter(v=>typeof v==="string"&&/^https?:\/\//i.test(v));
   if(!playlists.length)return json({error:"El servicio todavía no tiene listas configuradas. Contactá al administrador."},503);
   return json({ok:true,username,expires_at:customer.expires_at,playlists,checked_at:new Date().toISOString()});
  }catch(error){console.error("customer-auth error",error);return json({error:"Solicitud inválida"},400)}
