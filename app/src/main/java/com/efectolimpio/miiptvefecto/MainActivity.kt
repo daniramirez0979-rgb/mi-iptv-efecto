@@ -65,14 +65,11 @@ data class PlaylistProfile(
 enum class Section(val label: String) { HOME("Inicio"), LIVE("TV en vivo"), MOVIES("Películas"), SERIES("Series"), FAVORITES("Favoritos"), SETTINGS("Configuración") }
 
 private fun isArgentineChannel(channel: Channel): Boolean {
-    // El proveedor suele marcar el país en el grupo o en el nombre del canal.
     val raw = (channel.name + " " + channel.group).uppercase()
     val normalized = java.text.Normalizer.normalize(raw, java.text.Normalizer.Form.NFD)
         .replace(Regex("\\p{Mn}+"), "")
     if (listOf("🇦🇷", "ARGENTINA", "ARGENTINO", "ARGENTINOS", "TV ARG").any { normalized.contains(it) }) return true
     if (Regex("""(^|[^A-Z0-9])AR(?:G)?([^A-Z0-9]|$)""").containsMatchIn(normalized)) return true
-
-    // Canales nacionales y provinciales argentinos conocidos.
     val known = listOf(
         "TELEFE", "EL TRECE", "EL NUEVE", "AMERICA TV", "TV PUBLICA", "TELEVISION PUBLICA",
         "TVP", "C5N", "TODO NOTICIAS", "A24", "CRONICA TV", "CRONICA", "NET TV", "CANAL 26",
@@ -84,6 +81,16 @@ private fun isArgentineChannel(channel: Channel): Boolean {
         "CANAL DE LA CIUDAD"
     )
     return known.any { normalized.contains(it) }
+}
+
+// La lista del proveedor está ordenada por países: tomar todos los canales
+// desde la primera categoría/grupo que contiene "Argentina" hacia abajo.
+private fun argentineChannelsInPlaylistOrder(source: List<Channel>): List<Channel> {
+    val start = source.indexOfFirst {
+        val marker = (it.group + " " + it.name).uppercase()
+        marker.contains("ARGENTINA") || marker.contains("🇦🇷")
+    }
+    return if (start >= 0) source.drop(start) else source.filter { isArgentineChannel(it) }
 }
 
 
@@ -471,7 +478,7 @@ fun MiIptvApp() {
                     }
                     if (!isFullscreen) {
                         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            val argentinaPlayerChannels = channels.filter { isArgentineChannel(it) }
+                            val argentinaPlayerChannels = argentineChannelsInPlaylistOrder(channels)
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                                 TextButton(onClick = { isFullscreen = false; player.stop(); selected = null; playingMovie = false }, modifier = Modifier.weight(1f),
                                     contentPadding = PaddingValues(horizontal = 2.dp, vertical = 6.dp)) { Text("← CANALES", fontSize = 12.sp, maxLines = 1) }
@@ -552,7 +559,7 @@ fun MiIptvApp() {
                             }
                         }
                         if (!isFullscreen && channels.isNotEmpty()) {
-                            val argentinaOnly = channels.filter { isArgentineChannel(it) }
+                            val argentinaOnly = argentineChannelsInPlaylistOrder(channels)
                             Text("CANALES ARGENTINOS  •  ${argentinaOnly.size}", color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             LazyColumn(Modifier.fillMaxWidth().weight(0.32f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 items(argentinaOnly) { channel ->
@@ -616,7 +623,7 @@ fun MiIptvApp() {
                             OutlinedTextField(search, { search = it }, modifier = Modifier.fillMaxWidth(),
                                 label = { Text("Buscar canal") }, singleLine = true)
                             Spacer(Modifier.height(8.dp))
-                            val filtered = channels.filter { isArgentineChannel(it) && (it.name.contains(search, true) || it.group.contains(search, true)) }
+                            val filtered = argentineChannelsInPlaylistOrder(channels).filter { search.isBlank() || it.name.contains(search, true) || it.group.contains(search, true) }
                             if (filtered.isEmpty()) EmptyState("Todavía no hay canales", "Cargá una lista desde Configuración para comenzar.")
                             else LazyColumn(verticalArrangement = Arrangement.spacedBy(7.dp)) {
                                 items(filtered) { channel ->
@@ -677,7 +684,7 @@ fun MiIptvApp() {
                             SectionHeader("FAVORITOS", "Tus canales guardados")
                             val favs = channels.filter { favorites.contains(it.url) }
                             if (favs.isEmpty()) EmptyState("Aún no tenés favoritos", "Tocá la estrella de un canal para guardarlo.")
-                            else LazyColumn { items(favs.filter { isArgentineChannel(it) }) { ChannelRow(it, true, { playingMovie = false; selected = it }, { favorites = favorites - it.url }) } }
+                            else LazyColumn { items(argentineChannelsInPlaylistOrder(favs)) { ChannelRow(it, true, { playingMovie = false; selected = it }, { favorites = favorites - it.url }) } }
                         }
                         Section.SETTINGS -> SettingsScreen(
                             playlistUrl, { playlistUrl = it }, host, { host = it }, username, { username = it },
