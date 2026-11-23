@@ -88,6 +88,7 @@ fun MiIptvApp() {
     var favorites by remember { mutableStateOf(setOf<String>()) }
     var movies by remember { mutableStateOf(emptyList<CatalogItem>()) }
     var moviesLoaded by remember { mutableStateOf(false) }
+    var movieRetry by remember { mutableStateOf(0) }
     var catalogLoading by remember { mutableStateOf(false) }
     var series by remember { mutableStateOf(emptyList<CatalogItem>()) }
     var episodes by remember { mutableStateOf(emptyList<Channel>()) }
@@ -107,7 +108,7 @@ fun MiIptvApp() {
     var updateDialog by remember { mutableStateOf<Triple<String, String, String>?>(null) }
     // El catálogo VOD usa su propio estado de carga: no queda bloqueado
     // si el usuario entra a Películas mientras otra operación está ocupada.
-    LaunchedEffect(section, authenticated, customerUsername, customerPassword, moviesLoaded) {
+    LaunchedEffect(section, authenticated, customerUsername, customerPassword, movieRetry) {
         if (authenticated && section == Section.MOVIES && !moviesLoaded && !catalogLoading) {
             moviesLoaded = true
             catalogLoading = true
@@ -561,7 +562,7 @@ fun MiIptvApp() {
                                 Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                                     EmptyState("Catálogo no disponible", if (catalogLoading) "Buscando películas del proveedor…" else status)
                                     if (authenticated && !catalogLoading) {
-                                        TextButton(onClick = { moviesLoaded = false }) { Text("REINTENTAR CARGA") }
+                                        TextButton(onClick = { moviesLoaded = false; movieRetry++ }) { Text("REINTENTAR CARGA") }
                                     }
                                 }
                             } else LazyColumn(verticalArrangement = Arrangement.spacedBy(7.dp)) {
