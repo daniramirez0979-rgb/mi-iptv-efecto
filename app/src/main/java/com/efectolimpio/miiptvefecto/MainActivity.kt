@@ -145,6 +145,7 @@ fun MiIptvApp() {
     var activeProfileId by remember { mutableStateOf("") }
     var autoBackup by remember { mutableStateOf(true) }
     var failoverBusy by remember { mutableStateOf(false) }
+    var retriedChannelUrl by remember { mutableStateOf<String?>(null) }
     var authenticated by remember { mutableStateOf(false) }
     var loginBusy by remember { mutableStateOf(false) }
     var loginError by remember { mutableStateOf("") }
@@ -224,13 +225,13 @@ fun MiIptvApp() {
     val httpFactory = remember {
         DefaultHttpDataSource.Factory()
             .setUserAgent("VLC/3.0.20 LibVLC/3.0.20")
-            .setConnectTimeoutMs(20000)
-            .setReadTimeoutMs(30000)
+            .setConnectTimeoutMs(10000)
+            .setReadTimeoutMs(15000)
             .setAllowCrossProtocolRedirects(true)
     }
     val player = remember {
         val loadControl = androidx.media3.exoplayer.DefaultLoadControl.Builder()
-            .setBufferDurationsMs(15000, 60000, 2500, 6000)
+            .setBufferDurationsMs(5000, 15000, 500, 1500)
             .build()
         ExoPlayer.Builder(context)
             .setLoadControl(loadControl)
@@ -293,8 +294,26 @@ fun MiIptvApp() {
     // Si falla un canal, intenta el mismo canal en la siguiente lista guardada.
     DisposableEffect(player, selected, activeProfileId, profiles, autoBackup) {
         val listener = object : androidx.media3.common.Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == androidx.media3.common.Player.STATE_READY) {
+                    retriedChannelUrl = null
+                }
+            }
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                 val failedChannel = selected ?: return
+                if (retriedChannelUrl != failedChannel.url) {
+                    retriedChannelUrl = failedChannel.url
+                    status = "Reintentando ${failedChannel.name}…"
+                    scope.launch {
+                        delay(800)
+                        if (selected?.url == failedChannel.url) {
+                            player.setMediaItem(MediaItem.fromUri(failedChannel.url))
+                            player.prepare()
+                            player.playWhenReady = true
+                        }
+                    }
+                    return
+                }
                 if (!autoBackup || failoverBusy || profiles.size < 2) {
                     status = "No se pudo reproducir. Revisá la conexión o elegí otra lista."
                     return
