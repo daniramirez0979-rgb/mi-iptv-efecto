@@ -40,7 +40,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           candidates = list(Path('.').rglob('build.gradle')) + list(Path('.').rglob('build.gradle.kts'))
-          app = [p for p in candidates if 'com.android.application' in p.read_text(errors='ignore')]
+          app = [p for p in candidates if p.parent.name == 'app' and ('com.android.application' in p.read_text(errors='ignore') or 'com.android.library' in p.read_text(errors='ignore'))]
           if not app:
               raise SystemExit("No se encontró el build.gradle del módulo Android")
           p = app[0]
