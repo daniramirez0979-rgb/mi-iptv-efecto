@@ -38,6 +38,7 @@ import androidx.media3.ui.PlayerView
 import androidx.compose.ui.viewinterop.AndroidView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
 import java.net.URL
@@ -94,6 +95,8 @@ fun MiIptvApp() {
     var authenticated by remember { mutableStateOf(false) }
     var loginBusy by remember { mutableStateOf(false) }
     var loginError by remember { mutableStateOf("") }
+    var customerUsername by remember { mutableStateOf("") }
+    var customerPassword by remember { mutableStateOf("") }
 
 
     val securePrefs = remember {
@@ -165,6 +168,47 @@ fun MiIptvApp() {
         ) else View.SYSTEM_UI_FLAG_VISIBLE
     }
     DisposableEffect(Unit) { onDispose { player.release() } }
+
+    // Revalida el usuario y refresca las listas globales del panel cada dos minutos.
+    LaunchedEffect(authenticated, customerUsername, customerPassword) {
+        if (authenticated && customerUsername.isNotBlank()) {
+            while (true) {
+                delay(120_000)
+                try {
+                    val refreshed = withContext(Dispatchers.IO) { customerLogin(customerUsername, customerPassword) }
+                    val updatedProfiles = refreshed.playlists.mapIndexed { index, address ->
+                        PlaylistProfile("server_$index", if (index == 0) "Lista principal" else "Lista secundaria", "M3U", address)
+                    }
+                    if (profiles.map { it.address } != updatedProfiles.map { it.address }) {
+                        var replacement: Pair<PlaylistProfile, List<Channel>>? = null
+                        for (profile in updatedProfiles) {
+                            try {
+                                val parsed = withContext(Dispatchers.IO) { loadProfileChannels(profile) }
+                                if (parsed.isNotEmpty()) { replacement = profile to parsed; break }
+                            } catch (_: Exception) { }
+                        }
+                        if (replacement != null) {
+                            player.stop()
+                            selected = null
+                            profiles = updatedProfiles
+                            activeProfileId = replacement!!.first.id
+                            playlistUrl = replacement!!.first.address
+                            channels = replacement!!.second
+                            status = "Listas actualizadas desde EFECTO TV · ${channels.size} canales"
+                        }
+                    }
+                } catch (_: Exception) {
+                    player.stop()
+                    selected = null
+                    channels = emptyList()
+                    authenticated = false
+                    loginError = "Tu acceso fue suspendido o venció. Contactá al administrador."
+                    status = "Acceso no disponible."
+                    break
+                }
+            }
+        }
+    }
 
     // Si falla un canal, intenta el mismo canal en la siguiente lista guardada.
     DisposableEffect(player, selected, activeProfileId, profiles, autoBackup) {
@@ -513,6 +557,8 @@ fun MiIptvApp() {
                                     } catch (_: Exception) { }
                                 }
                                 require(active != null && loadedChannels.isNotEmpty()) { "No se pudo cargar ninguna lista. Probá más tarde o contactá al administrador." }
+                                customerUsername = user
+                                customerPassword = pass
                                 profiles = loaded
                                 activeProfileId = active!!.id
                                 playlistUrl = active!!.address
