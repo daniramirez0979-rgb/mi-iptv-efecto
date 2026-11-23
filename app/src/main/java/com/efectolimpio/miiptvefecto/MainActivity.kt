@@ -247,7 +247,8 @@ fun MiIptvApp() {
                     Column {
                         Text("MI IPTV", color = White, fontSize = 24.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
                         Text("EFECTO", color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 4.sp)
-                        Text("CONTRATÁ LA MEJOR TV DIGITAL", color = Cyan, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)\n                        Text("WHATSAPP 3765-149583", color = White, fontSize = 19.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
+                        Text("CONTRATÁ LA MEJOR TV DIGITAL", color = Cyan, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
+                        Text("WHATSAPP 3765-149583", color = White, fontSize = 19.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
                     }
                     Spacer(Modifier.weight(1f))
                     Text(if (channels.isEmpty()) "SIN LISTA CARGADA" else "${channels.size} CANALES", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
