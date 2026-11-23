@@ -114,14 +114,14 @@ jobs:
         run: |
           APK_PATH="$(find . -type f -path "*/app/build/outputs/apk/debug/app-debug.apk" | head -n 1)"
           test -n "$APK_PATH"
-          cp "$APK_PATH" EFECTO-TV.apk
-          test -s EFECTO-TV.apk
+          cp "$APK_PATH" Efecto-TV-Ultima.apk
+          test -s Efecto-TV-Ultima.apk
 
       - name: Guardar APK
         uses: actions/upload-artifact@v4
         with:
-          name: EFECTO-TV
-          path: EFECTO-TV.apk
+          name: Efecto-TV-Ultima
+          path: Efecto-TV-Ultima.apk
           if-no-files-found: error
 
       - name: Publicar actualización para la APK
@@ -129,5 +129,5 @@ jobs:
         with:
           tag_name: tv-${{ github.run_number }}
           name: EFECTO TV ${{ github.run_number }}
-          files: EFECTO-TV.apk
+          files: Efecto-TV-Ultima.apk
           make_latest: true
