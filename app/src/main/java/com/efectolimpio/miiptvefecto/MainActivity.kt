@@ -1008,7 +1008,7 @@ private fun checkLatestAppRelease(): Pair<Int, String>? {
         if (connection.responseCode !in 200..299) return null
         val json = org.json.JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
         val tag = json.optString("tag_name")
-        val version = Regex("""(\\d+)""").find(tag)?.groupValues?.get(1)?.toIntOrNull() ?: return null
+        val version = Regex("""(\d+)""").find(tag)?.groupValues?.get(1)?.toIntOrNull() ?: return null
         val assets = json.optJSONArray("assets") ?: return null
         var apkUrl = ""
         for (i in 0 until assets.length()) {
