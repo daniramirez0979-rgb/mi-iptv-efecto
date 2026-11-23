@@ -191,42 +191,30 @@ fun MiIptvApp() {
     }
     DisposableEffect(Unit) { onDispose { player.release() } }
 
-    // Revalida el usuario y refresca las listas globales del panel cada dos minutos.
+    // Revalida el acceso sin interrumpir la reproducción ante cortes momentáneos de internet.
     LaunchedEffect(authenticated, customerUsername, customerPassword) {
         if (authenticated && customerUsername.isNotBlank()) {
             while (true) {
-                delay(120_000)
+                delay(300_000)
                 try {
                     val refreshed = withContext(Dispatchers.IO) { customerLogin(customerUsername, customerPassword) }
-                    val updatedProfiles = refreshed.playlists.mapIndexed { index, address ->
-                        PlaylistProfile("server_$index", if (index == 0) "Lista principal" else "Lista secundaria", "M3U", address)
+                    val updatedProfiles = refreshed.playlists.take(1).map { address ->
+                        PlaylistProfile("server_0", "Lista principal", "M3U", address)
                     }
-                    if (profiles.map { it.address } != updatedProfiles.map { it.address }) {
-                        var replacement: Pair<PlaylistProfile, List<Channel>>? = null
-                        for (profile in updatedProfiles) {
-                            try {
-                                val parsed = withContext(Dispatchers.IO) { loadProfileChannels(profile) }
-                                if (parsed.isNotEmpty()) { replacement = profile to parsed; break }
-                            } catch (_: Exception) { }
-                        }
-                        if (replacement != null) {
-                            player.stop()
-                            selected = null
+                    if (updatedProfiles.isNotEmpty() && profiles.map { it.address } != updatedProfiles.map { it.address }) {
+                        val target = updatedProfiles.first()
+                        val parsed = withContext(Dispatchers.IO) { loadProfileChannels(target) }
+                        if (parsed.isNotEmpty()) {
                             profiles = updatedProfiles
-                            activeProfileId = replacement!!.first.id
-                            playlistUrl = replacement!!.first.address
-                            channels = replacement!!.second
-                            status = "Listas actualizadas desde EFECTO TV · ${channels.size} canales"
+                            activeProfileId = target.id
+                            playlistUrl = target.address
+                            channels = parsed
+                            if (selected == null) status = "Lista actualizada · ${channels.size} canales"
                         }
                     }
                 } catch (_: Exception) {
-                    player.stop()
-                    selected = null
-                    channels = emptyList()
-                    authenticated = false
-                    loginError = "Tu acceso fue suspendido o venció. Contactá al administrador."
-                    status = "Acceso no disponible."
-                    break
+                    // Un fallo temporal no significa que el usuario esté bloqueado.
+                    // Se conserva el canal, la lista y la sesión; se reintenta en el próximo ciclo.
                 }
             }
         }
