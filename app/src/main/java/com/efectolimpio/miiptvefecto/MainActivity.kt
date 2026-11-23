@@ -236,7 +236,7 @@ fun MiIptvApp() {
             ) {
                 Icon(Icons.Default.LiveTv, null, tint = Cyan, modifier = Modifier.size(34.dp))
                 Spacer(Modifier.height(8.dp))
-                Section.values().forEach { item ->
+                Section.values().filter { it != Section.SETTINGS }.forEach { item ->
                     val active = section == item
                     Column(
                         Modifier.fillMaxWidth().padding(horizontal = 7.dp)
@@ -335,7 +335,7 @@ fun MiIptvApp() {
                             channelCount = channels.size,
                             status = status,
                             onLive = { section = Section.LIVE },
-                            onSettings = { section = Section.SETTINGS },
+                            onSettings = { status = "Tu acceso y tus listas se administran desde EFECTO TV." },
                             onMovies = { section = Section.MOVIES },
                             onSeries = { section = Section.SERIES }
                         )
@@ -562,7 +562,7 @@ fun MiIptvApp() {
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                 HomeTile("SERIES", "Temporadas y episodios", Icons.Default.VideoLibrary, Modifier.weight(1f), onSeries)
-                HomeTile("MI LISTA", "Configurar acceso", Icons.Default.Settings, Modifier.weight(1f), onSettings)
+                HomeTile("MI CUENTA", "Acceso administrado", Icons.Default.AccountCircle, Modifier.weight(1f), onSettings)
             }
         }
         item { Text(status, color = Muted, fontSize = 11.sp) }
