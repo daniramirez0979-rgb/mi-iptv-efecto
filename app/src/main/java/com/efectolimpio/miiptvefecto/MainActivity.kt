@@ -104,6 +104,23 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MiIptvApp() {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val securePrefs = remember {
+        val masterKey = MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build()
+        EncryptedSharedPreferences.create(
+            context, "mi_iptv_efecto_secure", masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+    }
+    val installationDeviceId = remember(securePrefs) {
+        securePrefs.getString("installation_device_id", null)
+            ?: java.util.UUID.randomUUID().toString().also {
+                securePrefs.edit().putString("installation_device_id", it).apply()
+            }
+    }
+    val deviceLabel = remember {
+        "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}".trim().take(80)
+    }
     val scope = rememberCoroutineScope()
     var playlistUrl by remember { mutableStateOf("") }
     var host by remember { mutableStateOf("") }
@@ -149,7 +166,7 @@ fun MiIptvApp() {
             status = "Cargando catálogo de películas…"
             try {
                 val json = withContext(Dispatchers.IO) {
-                    customerCatalog(customerUsername, customerPassword, "get_vod_streams")
+                    customerCatalog(customerUsername, customerPassword, "get_vod_streams", installationDeviceId, deviceLabel)
                 }
                 movies = parseCatalog(json)
                 status = if (movies.isEmpty()) "El proveedor respondió, pero no se pudieron interpretar las películas." else "Películas cargadas: ${movies.size}"
@@ -160,14 +177,6 @@ fun MiIptvApp() {
     }
 
 
-    val securePrefs = remember {
-        val masterKey = MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build()
-        EncryptedSharedPreferences.create(
-            context, "mi_iptv_efecto_secure", masterKey,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-        )
-    }
     LaunchedEffect(Unit) {
         playlistUrl = securePrefs.getString("playlist_url", "") ?: ""
         host = securePrefs.getString("host", "") ?: ""
@@ -254,7 +263,7 @@ fun MiIptvApp() {
             while (true) {
                 delay(15_000)
                 try {
-                    val refreshed = withContext(Dispatchers.IO) { customerLogin(customerUsername, customerPassword) }
+                    val refreshed = withContext(Dispatchers.IO) { customerLogin(customerUsername, customerPassword, installationDeviceId, deviceLabel) }
                     val updatedProfiles = refreshed.playlists.take(1).map { address ->
                         PlaylistProfile("server_0", "Lista principal", "M3U", address)
                     }
@@ -406,7 +415,7 @@ fun MiIptvApp() {
                                 loading = true
                                 status = "Actualizando canales desde el panel…"
                                 try {
-                                    val session = withContext(Dispatchers.IO) { customerLogin(customerUsername, customerPassword) }
+                                    val session = withContext(Dispatchers.IO) { customerLogin(customerUsername, customerPassword, installationDeviceId, deviceLabel) }
                                     val freshProfiles = session.playlists.mapIndexed { index, address ->
                                         PlaylistProfile("server_$index", if (index == 0) "Lista principal" else "Lista secundaria", "M3U", address)
                                     }
@@ -732,7 +741,7 @@ fun MiIptvApp() {
                                     loading = true; status = "Cargando películas…"
                                     try {
                                         val json = withContext(Dispatchers.IO) {
-                                            if (authenticated) customerCatalog(customerUsername, customerPassword, "get_vod_streams")
+                                            if (authenticated) customerCatalog(customerUsername, customerPassword, "get_vod_streams", installationDeviceId, deviceLabel)
                                             else downloadText("$host/player_api.php?username=${Uri.encode(username)}&password=${Uri.encode(password)}&action=get_vod_streams")
                                         }
                                         movies = parseCatalog(json)
@@ -799,7 +808,7 @@ fun MiIptvApp() {
                             loginBusy = true
                             loginError = ""
                             try {
-                                val session = withContext(Dispatchers.IO) { customerLogin(user, pass) }
+                                val session = withContext(Dispatchers.IO) { customerLogin(user, pass, installationDeviceId, deviceLabel) }
                                 val loaded = session.playlists.mapIndexed { index, address ->
                                     PlaylistProfile("server_$index", if (index == 0) "Lista principal" else "Lista secundaria", "M3U", address)
                                 }
@@ -996,7 +1005,7 @@ private data class CustomerSession(val playlists: List<String>, val expiresAt: S
 
 private class CustomerAuthException(val httpCode: Int, message: String) : Exception(message)
 
-private fun customerCatalog(username: String, password: String, action: String): String {
+private fun customerCatalog(username: String, password: String, action: String, deviceId: String, deviceLabel: String): String {
     require(action == "get_vod_streams" || action == "get_series") { "Catálogo inválido." }
     val endpoint = "https://zumorvkalqehzztvosce.supabase.co/functions/v1/customer-catalog"
     val apiKey = "sb_publishable_feT-R_JGExnqwyIrJgw4TQ_H3I0PVXS"
@@ -1008,7 +1017,8 @@ private fun customerCatalog(username: String, password: String, action: String):
     connection.setRequestProperty("Content-Type", "application/json")
     connection.setRequestProperty("apikey", apiKey)
     connection.setRequestProperty("Accept", "application/json")
-    val body = org.json.JSONObject().put("username", username).put("password", password).put("action", action).toString()
+    val body = org.json.JSONObject().put("username", username).put("password", password)
+        .put("action", action).put("device_id", deviceId).put("device_label", deviceLabel).toString()
     return try {
         connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
         val code = connection.responseCode
@@ -1022,7 +1032,7 @@ private fun customerCatalog(username: String, password: String, action: String):
     } finally { connection.disconnect() }
 }
 
-private fun customerLogin(username: String, password: String): CustomerSession {
+private fun customerLogin(username: String, password: String, deviceId: String, deviceLabel: String): CustomerSession {
     val endpoint = "https://zumorvkalqehzztvosce.supabase.co/functions/v1/customer-auth"
     val apiKey = "sb_publishable_feT-R_JGExnqwyIrJgw4TQ_H3I0PVXS"
     val connection = URL(endpoint).openConnection() as HttpURLConnection
@@ -1033,7 +1043,8 @@ private fun customerLogin(username: String, password: String): CustomerSession {
     connection.setRequestProperty("Content-Type", "application/json")
     connection.setRequestProperty("apikey", apiKey)
     connection.setRequestProperty("Accept", "application/json")
-    val body = org.json.JSONObject().put("username", username).put("password", password).toString()
+    val body = org.json.JSONObject().put("username", username).put("password", password)
+        .put("device_id", deviceId).put("device_label", deviceLabel).toString()
     return try {
         connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
         val code = connection.responseCode
