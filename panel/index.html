@@ -3,7 +3,7 @@
 <style>
 *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 12% 18%,rgba(49,177,235,.22) 0 2px,transparent 3px),radial-gradient(circle at 82% 28%,rgba(255,255,255,.18) 0 5px,transparent 6px),radial-gradient(circle at 72% 82%,rgba(49,177,235,.16) 0 3px,transparent 4px),linear-gradient(140deg,#06182b 0%,#0b3150 48%,#071827 100%);background-attachment:fixed;font:15px system-ui;color:#eef6ff;min-height:100vh;position:relative}.wrap{max-width:950px;margin:auto;padding:22px;position:relative;z-index:1}.brand{font-weight:950;font-size:30px;letter-spacing:2px;text-shadow:0 3px 18px rgba(39,196,217,.35)}.brand span{color:#43a9ff}.sub,.muted{color:#9bb0c8}.sub{margin:5px 0 22px}.card{background:linear-gradient(145deg,rgba(20,48,72,.94),rgba(8,25,43,.96));backdrop-filter:blur(10px);border:1px solid rgba(91,183,225,.28);box-shadow:0 14px 36px rgba(0,0,0,.24);border-radius:18px;padding:20px;margin:16px 0}h2{font-size:18px;margin:0 0 14px}label{display:block;color:#b9cce0;font-size:13px;margin:10px 0 6px}input{width:100%;padding:13px;border:1px solid #36516f;background:#091727;color:white;border-radius:9px;font-size:15px}button{border:0;border-radius:9px;padding:12px 16px;background:#1688ee;color:white;font-weight:700;cursor:pointer}button.secondary{background:#29415d}button.danger{background:#9d3542}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.row{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}.hidden{display:none!important}.notice{color:#ffd68a;font-size:13px;line-height:1.5}.status{padding:4px 9px;border-radius:30px;background:#164d39;color:#9af0c6;font-size:12px}.off{background:#572b34;color:#ffc0c5}.user{padding:14px 0;border-top:1px solid #263b55;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}.user .actions{display:flex;gap:8px}.empty{color:#9bb0c8;padding:18px;text-align:center}.muted{font-size:12px}@media(max-width:600px){.wrap{padding:14px}.grid{grid-template-columns:1fr}.user{align-items:flex-start}.user .actions{width:100%}.user button{flex:1}}
 </style></head><body><main class="wrap"><div class="brand">EFECTO <span>TV</span></div><div style="color:#67d7ed;font-size:11px;font-weight:800;letter-spacing:4px;margin-top:2px">PRESENTADO POR EFECTO LIMPIO</div><div class="sub">Panel privado de administración · Listas generales y clientes</div>
-<section id="login" class="card"><h2>Ingresar al panel</h2><label>Correo administrador</label><input id="email" type="email" autocomplete="username"><label>Contraseña</label><input id="password" type="password" autocomplete="current-password"><p id="loginMsg" class="notice"></p><button id="loginBtn">Ingresar</button></section>
+<section id="login" class="card"><h2>Ingresar al panel</h2><label>Correo administrador</label><input id="email" type="email" autocomplete="username"><label>Contraseña</label><input id="password" type="password" autocomplete="current-password"><label style="display:flex;align-items:center;gap:9px;margin:14px 0;cursor:pointer"><input id="rememberAccess" type="checkbox" style="width:19px;height:19px;margin:0;accent-color:#1688ee"> Recordar mi acceso en este dispositivo</label><p class="muted">Si lo tildás, el panel mantendrá tu sesión iniciada. No guardamos tu contraseña en texto.</p><p id="loginMsg" class="notice"></p><button id="loginBtn">Ingresar</button></section>
 <section id="app" class="hidden"><div class="row"><h2>Administración</h2><button id="logout" class="secondary">Cerrar sesión</button></div>
 <div class="card"><h2>Listas generales para TODOS los clientes</h2><label>Lista principal (URL M3U)</label><input id="globalPrimary" placeholder="https://..."><label>Lista secundaria / respaldo (opcional)</label><input id="globalSecondary" placeholder="https://..."><p class="muted">Todos los clientes reciben estas mismas listas. Al cambiarlas acá no hace falta reinstalar la APK.</p><p id="globalMsg" class="notice"></p><button id="saveGlobal">Guardar listas generales</button></div>
 <div class="card"><h2>Crear usuario</h2><div class="grid"><div><label>Usuario</label><input id="newUser" placeholder="cliente01"></div><div><label>Contraseña</label><input id="newPass" type="password"></div><div><label>Días de validez</label><input id="days" type="number" min="1" max="3650" value="30"></div></div><p id="createMsg" class="notice"></p><button id="createBtn">Crear cuenta</button></div>
@@ -13,10 +13,13 @@ const SUPABASE_URL="https://zumorvkalqehzztvosce.supabase.co";
 const SUPABASE_ANON_KEY="sb_publishable_feT-R_JGExnqwyIrJgw4TQ_H3I0PVXS";
 let sb=null,session=null;
 const $=id=>document.getElementById(id);
+const rememberKey="efectotv_remember_access";
+const authStorage={getItem:key=>{try{return (localStorage.getItem(rememberKey)==="1"?localStorage:sessionStorage).getItem(key)}catch(e){return null}},setItem:(key,value)=>{try{(localStorage.getItem(rememberKey)==="1"?localStorage:sessionStorage).setItem(key,value)}catch(e){}},removeItem:key=>{try{localStorage.removeItem(key);sessionStorage.removeItem(key)}catch(e){}}};
 const msg=(id,s)=>$(id).textContent=s;
 async function init(){
  if(!SUPABASE_URL.startsWith("https://")||SUPABASE_ANON_KEY.length<30){msg("loginMsg","Falta conectar Supabase para habilitar el panel online.");$("loginBtn").disabled=true;return}
- sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+ $("rememberAccess").checked=localStorage.getItem(rememberKey)==="1";
+ sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{auth:{storage:authStorage,persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
  const r=await sb.auth.getSession();session=r.data.session;if(session)showApp();
 }
 function showApp(){$("login").classList.add("hidden");$("app").classList.remove("hidden");loadGlobal();loadUsers()}
@@ -25,9 +28,9 @@ async function call(action,data={}){
  if(result.error)throw result.error;if(result.data&&result.data.error)throw Error(result.data.error);return result.data;
 }
 $("loginBtn").onclick=async()=>{
- try{msg("loginMsg","");const r=await sb.auth.signInWithPassword({email:$("email").value,password:$("password").value});if(r.error)throw r.error;session=r.data.session;showApp()}catch(e){msg("loginMsg",e.message)}
+ try{msg("loginMsg","");if($("rememberAccess").checked){localStorage.setItem(rememberKey,"1")}else{localStorage.removeItem(rememberKey);localStorage.clear();}const r=await sb.auth.signInWithPassword({email:$("email").value,password:$("password").value});if(r.error)throw r.error;session=r.data.session;showApp()}catch(e){msg("loginMsg",e.message)}
 };
-$("logout").onclick=async()=>{await sb.auth.signOut();session=null;$("app").classList.add("hidden");$("login").classList.remove("hidden")};
+$("logout").onclick=async()=>{await sb.auth.signOut();localStorage.removeItem(rememberKey);session=null;$("app").classList.add("hidden");$("login").classList.remove("hidden")};
 async function loadGlobal(){
  try{const r=await call("global_lists");$("globalPrimary").value=r.primary_url||"";$("globalSecondary").value=r.secondary_url||""}
  catch(e){msg("globalMsg","No se pudieron cargar las listas: "+e.message)}
