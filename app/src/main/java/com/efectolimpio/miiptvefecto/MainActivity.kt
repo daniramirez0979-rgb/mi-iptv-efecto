@@ -65,17 +65,25 @@ data class PlaylistProfile(
 enum class Section(val label: String) { HOME("Inicio"), LIVE("TV en vivo"), MOVIES("Películas"), SERIES("Series"), FAVORITES("Favoritos"), SETTINGS("Configuración") }
 
 private fun isArgentineChannel(channel: Channel): Boolean {
-    val metadata = (channel.name + " " + channel.group).uppercase()
-    if (metadata.contains("🇦🇷") || Regex("""(^|[^A-Z])(AR|ARG|ARGENTINA)([^A-Z]|$)""").containsMatchIn(metadata)) return true
-    val knownArgentine = listOf(
-        "TELEFE", "EL TRECE", "CANAL 13", "CANAL 9", "AMERICA TV", "AMÉRICA TV",
-        "TV PUBLICA", "TV PÚBLICA", "TELEVISIÓN PUBLICA", "TVP", "C5N", "TN ",
-        "TODO NOTICIAS", "A24", "CRONICA", "CRÓNICA", "NET TV", "CANAL 26",
-        "CANAL 10 CORDOBA", "CANAL 10 CÓRDOBA", "CANAL 7 MENDOZA", "CANAL 12",
-        "CANAL 9 LITORAL", "CANAL 3 ROSARIO", "ENCUENTRO", "PAKA PAKA",
-        "DEPORTV", "TYC SPORTS", "T Y C SPORTS", "EL Nueve"
+    // El proveedor suele marcar el país en el grupo o en el nombre del canal.
+    val raw = (channel.name + " " + channel.group).uppercase()
+    val normalized = java.text.Normalizer.normalize(raw, java.text.Normalizer.Form.NFD)
+        .replace(Regex("\\p{Mn}+"), "")
+    if (listOf("🇦🇷", "ARGENTINA", "ARGENTINO", "ARGENTINOS", "TV ARG").any { normalized.contains(it) }) return true
+    if (Regex("""(^|[^A-Z0-9])AR(?:G)?([^A-Z0-9]|$)""").containsMatchIn(normalized)) return true
+
+    // Canales nacionales y provinciales argentinos conocidos.
+    val known = listOf(
+        "TELEFE", "EL TRECE", "EL NUEVE", "AMERICA TV", "TV PUBLICA", "TELEVISION PUBLICA",
+        "TVP", "C5N", "TODO NOTICIAS", "A24", "CRONICA TV", "CRONICA", "NET TV", "CANAL 26",
+        "LN+", "LA NACION+", "IP NOTICIAS", "CANAL 9 LITORAL", "CANAL 3 ROSARIO",
+        "CANAL 10 CORDOBA", "CANAL 7 MENDOZA", "CANAL 12 MISIONES", "CANAL 12 POSADAS",
+        "CANAL 12 CORDOBA", "CANAL 8 MAR DEL PLATA", "ENCUENTRO", "PAKA PAKA",
+        "DEPORTV", "TYC SPORTS", "T Y C SPORTS", "CIUDAD MAGAZINE", "CM MUSICA",
+        "QUIERO MUSICA", "GARAGE TV", "TELEMAX", "CANAL RURAL", "ARGENTINISIMA",
+        "CANAL DE LA CIUDAD"
     )
-    return knownArgentine.any { metadata.contains(it) }
+    return known.any { normalized.contains(it) }
 }
 
 
