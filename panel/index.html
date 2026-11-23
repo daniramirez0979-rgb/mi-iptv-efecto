@@ -9,8 +9,8 @@
 <div class="card"><h2>Crear usuario</h2><div class="grid"><div><label>Usuario</label><input id="newUser" placeholder="cliente01"></div><div><label>Contraseña</label><input id="newPass" type="password"></div><div><label>Días de validez</label><input id="days" type="number" min="1" max="3650" value="30"></div></div><p id="createMsg" class="notice"></p><button id="createBtn">Crear cuenta</button></div>
 <div class="card"><div class="row"><h2>Usuarios registrados</h2><button id="refresh" class="secondary">Actualizar</button></div><div id="users"><div class="empty">Cargando...</div></div></div></section>
 </main><script>
-const SUPABASE_URL="CONFIGURAR_SUPABASE_URL";
-const SUPABASE_ANON_KEY="CONFIGURAR_SUPABASE_ANON_KEY";
+const SUPABASE_URL="https://zumorvkalqehzztvosce.supabase.co";
+const SUPABASE_ANON_KEY="sb_publishable_feT-R_JGExnqwyIrJgw4TQ_H3I0PVXS";
 let sb=null,session=null;
 const $=id=>document.getElementById(id);
 const msg=(id,s)=>$(id).textContent=s;
