@@ -1,6 +1,7 @@
 package com.efectolimpio.miiptvefecto
 
 import android.net.Uri
+import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.view.View
 import android.os.Bundle
@@ -98,6 +99,18 @@ fun MiIptvApp() {
     var customerUsername by remember { mutableStateOf("") }
     var customerPassword by remember { mutableStateOf("") }
     var rememberCustomerLogin by remember { mutableStateOf(false) }
+    var updateAvailable by remember { mutableStateOf(false) }
+    var updateUrl by remember { mutableStateOf("") }
+    var updateChecked by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        val latest = withContext(Dispatchers.IO) { checkLatestAppRelease() }
+        if (latest != null && latest.first > BuildConfig.VERSION_CODE) {
+            updateAvailable = true
+            updateUrl = latest.second
+        }
+        updateChecked = true
+    }
 
 
     val securePrefs = remember {
@@ -275,6 +288,25 @@ fun MiIptvApp() {
         primary = Cyan, background = Navy, surface = Panel, onPrimary = Navy,
         onBackground = White, onSurface = White, secondary = Cyan
     )) {
+        if (updateAvailable) {
+            AlertDialog(
+                onDismissRequest = { },
+                title = { Text("Actualización disponible") },
+                text = { Text("Hay una nueva versión de EFECTO TV. Actualizá antes de ingresar para tener las últimas mejoras.") },
+                confirmButton = {
+                    Button(onClick = {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(updateUrl))
+                        context.startActivity(intent)
+                    }) { Text("ACTUALIZAR") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { updateAvailable = false }) { Text("Más tarde") }
+                },
+                containerColor = Panel,
+                titleContentColor = White,
+                textContentColor = Muted
+            )
+        }
         Row(Modifier.fillMaxSize().background(Navy)) {
             if (authenticated) {
 
@@ -963,4 +995,29 @@ private fun parseSeriesEpisodes(json: String, host: String, user: String, pass: 
         }
     }
     return result
+}
+
+
+private fun checkLatestAppRelease(): Pair<Int, String>? {
+    val connection = URL("https://api.github.com/repos/daniramirez0979-rgb/mi-iptv-efecto/releases/latest").openConnection() as HttpURLConnection
+    connection.connectTimeout = 10000
+    connection.readTimeout = 10000
+    connection.setRequestProperty("Accept", "application/vnd.github+json")
+    connection.setRequestProperty("User-Agent", "EFECTO-TV-Android")
+    return try {
+        if (connection.responseCode !in 200..299) return null
+        val json = org.json.JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+        val tag = json.optString("tag_name")
+        val version = Regex("""(\\d+)""").find(tag)?.groupValues?.get(1)?.toIntOrNull() ?: return null
+        val assets = json.optJSONArray("assets") ?: return null
+        var apkUrl = ""
+        for (i in 0 until assets.length()) {
+            val asset = assets.optJSONObject(i) ?: continue
+            if (asset.optString("name").endsWith(".apk", true)) {
+                apkUrl = asset.optString("browser_download_url")
+                break
+            }
+        }
+        if (apkUrl.isBlank()) null else version to apkUrl
+    } catch (_: Exception) { null } finally { connection.disconnect() }
 }
