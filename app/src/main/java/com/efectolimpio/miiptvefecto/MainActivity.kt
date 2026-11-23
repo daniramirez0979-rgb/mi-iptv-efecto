@@ -31,6 +31,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.common.MediaItem
+import androidx.media3.common.C
+import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.datasource.DefaultHttpDataSource
@@ -62,6 +64,21 @@ data class PlaylistProfile(
 )
 enum class Section(val label: String) { HOME("Inicio"), LIVE("TV en vivo"), MOVIES("Películas"), SERIES("Series"), FAVORITES("Favoritos"), SETTINGS("Configuración") }
 
+private fun isArgentineChannel(channel: Channel): Boolean {
+    val metadata = (channel.name + " " + channel.group).uppercase()
+    if (metadata.contains("🇦🇷") || Regex("""(^|[^A-Z])(AR|ARG|ARGENTINA)([^A-Z]|$)""").containsMatchIn(metadata)) return true
+    val knownArgentine = listOf(
+        "TELEFE", "EL TRECE", "CANAL 13", "CANAL 9", "AMERICA TV", "AMÉRICA TV",
+        "TV PUBLICA", "TV PÚBLICA", "TELEVISIÓN PUBLICA", "TVP", "C5N", "TN ",
+        "TODO NOTICIAS", "A24", "CRONICA", "CRÓNICA", "NET TV", "CANAL 26",
+        "CANAL 10 CORDOBA", "CANAL 10 CÓRDOBA", "CANAL 7 MENDOZA", "CANAL 12",
+        "CANAL 9 LITORAL", "CANAL 3 ROSARIO", "ENCUENTRO", "PAKA PAKA",
+        "DEPORTV", "TYC SPORTS", "T Y C SPORTS", "EL Nueve"
+    )
+    return knownArgentine.any { metadata.contains(it) }
+}
+
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -80,6 +97,8 @@ fun MiIptvApp() {
     var status by remember { mutableStateOf("Agregá tu lista M3U/M3U8 o conectá tu cuenta.") }
     var channels by remember { mutableStateOf(emptyList<Channel>()) }
     var selected by remember { mutableStateOf<Channel?>(null) }
+    var playingMovie by remember { mutableStateOf(false) }
+    var showSubtitleDialog by remember { mutableStateOf(false) }
     var isFullscreen by remember { mutableStateOf(false) }
     var section by remember { mutableStateOf(Section.HOME) }
     var loading by remember { mutableStateOf(false) }
@@ -343,7 +362,7 @@ fun MiIptvApp() {
                     Column(
                         Modifier.fillMaxWidth().padding(horizontal = 7.dp)
                             .background(if (active) Panel2 else Color.Transparent, RoundedCornerShape(13.dp))
-                            .clickable { section = item; selected = null }
+                            .clickable { section = item; selected = null; playingMovie = false }
                             .padding(vertical = 13.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
@@ -458,6 +477,47 @@ fun MiIptvApp() {
                                 }, enabled = channels.indexOfFirst { it.url == selected?.url } in 0 until channels.lastIndex, modifier = Modifier.weight(1f),
                                     contentPadding = PaddingValues(horizontal = 2.dp, vertical = 6.dp)) { Text("SIGUIENTE", fontSize = 12.sp, maxLines = 1) }
                             }
+                            if (playingMovie) {
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                                    OutlinedButton(onClick = { showSubtitleDialog = true }) {
+                                        Icon(Icons.Default.Subtitles, null, modifier = Modifier.size(18.dp))
+                                        Spacer(Modifier.width(6.dp))
+                                        Text("SUBTÍTULOS", fontSize = 12.sp)
+                                    }
+                                }
+                                if (showSubtitleDialog) {
+                                    val textGroups = player.currentTracks.groups.filter { it.type == C.TRACK_TYPE_TEXT }
+                                    AlertDialog(
+                                        onDismissRequest = { showSubtitleDialog = false },
+                                        title = { Text("Subtítulos de la película") },
+                                        text = {
+                                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                TextButton(onClick = {
+                                                    player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                                                        .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true).build()
+                                                    showSubtitleDialog = false
+                                                }) { Text("Desactivar subtítulos") }
+                                                if (textGroups.isEmpty()) Text("Esta película no ofrece pistas de subtítulos.", color = Muted)
+                                                textGroups.forEach { group ->
+                                                    for (i in 0 until group.length) {
+                                                        val format = group.getTrackFormat(i)
+                                                        val language = format.language?.takeIf { it.isNotBlank() } ?: "Idioma no identificado"
+                                                        val label = format.label?.takeIf { it.isNotBlank() } ?: language
+                                                        TextButton(onClick = {
+                                                            player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                                                                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                                                                .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+                                                                .addOverride(TrackSelectionOverride(group.mediaTrackGroup, listOf(i))).build()
+                                                            showSubtitleDialog = false
+                                                        }) { Text("$label ($language)") }
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        confirmButton = { TextButton(onClick = { showSubtitleDialog = false }) { Text("Cerrar") } }
+                                    )
+                                }
+                            }
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
                                 OutlinedButton(onClick = {
                                     player.stop()
@@ -483,11 +543,12 @@ fun MiIptvApp() {
                             }
                         }
                         if (!isFullscreen && channels.isNotEmpty()) {
-                            Text("CANALES DISPONIBLES  •  ${channels.size}", color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            val argentinaOnly = channels.filter { isArgentineChannel(it) }
+                            Text("CANALES ARGENTINOS  •  ${argentinaOnly.size}", color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             LazyColumn(Modifier.fillMaxWidth().weight(0.32f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                items(channels) { channel ->
+                                items(argentinaOnly) { channel ->
                                     ChannelRow(channel, favorites.contains(channel.url),
-                                        onClick = { selected = channel },
+                                        onClick = { playingMovie = false; selected = channel },
                                         onFavorite = { favorites = if (favorites.contains(channel.url)) favorites - channel.url else favorites + channel.url })
                                 }
                             }
@@ -546,7 +607,7 @@ fun MiIptvApp() {
                             OutlinedTextField(search, { search = it }, modifier = Modifier.fillMaxWidth(),
                                 label = { Text("Buscar canal") }, singleLine = true)
                             Spacer(Modifier.height(8.dp))
-                            val filtered = channels.filter { it.name.contains(search, true) || it.group.contains(search, true) }
+                            val filtered = channels.filter { isArgentineChannel(it) && (it.name.contains(search, true) || it.group.contains(search, true)) }
                             if (filtered.isEmpty()) EmptyState("Todavía no hay canales", "Cargá una lista desde Configuración para comenzar.")
                             else LazyColumn(verticalArrangement = Arrangement.spacedBy(7.dp)) {
                                 items(filtered) { channel ->
@@ -571,7 +632,7 @@ fun MiIptvApp() {
                                         val ext = item.extension.ifBlank { "mp4" }
                                         val access = providerAccess(playlistUrl)
                                         if (access == null) status = "No se pudo leer el acceso de la lista principal."
-                                        else selected = Channel(item.name, access.movieUrl(item.id, ext), item.category)
+                                        else { playingMovie = true; selected = Channel(item.name, access.movieUrl(item.id, ext), item.category) }
                                     }
                                 }
                             }
@@ -599,7 +660,7 @@ fun MiIptvApp() {
                                 TextButton(onClick = { selectedSeries = null; episodes = emptyList() }) { Text("← Volver a series") }
                                 if (episodes.isEmpty()) EmptyState("Sin episodios disponibles", status)
                                 else LazyColumn(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                                    items(episodes) { ep -> CatalogRow(ep.name, ep.group) { selected = ep } }
+                                    items(episodes) { ep -> CatalogRow(ep.name, ep.group) { playingMovie = false; selected = ep } }
                                 }
                             }
                         }
@@ -798,7 +859,7 @@ fun MiIptvApp() {
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                HomeTile("MI CUENTA", "Acceso administrado", Icons.Default.AccountCircle, Modifier.weight(1f), onSettings)
+                HomeTile("SERIES", "Tu catálogo de series", Icons.Default.VideoLibrary, Modifier.weight(1f), onSeries)
                 HomeTile("MI CUENTA", "Acceso administrado", Icons.Default.AccountCircle, Modifier.weight(1f), onSettings)
             }
         }
