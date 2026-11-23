@@ -1,0 +1,18 @@
+name: Extraer proyecto Android
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extraer fuentes Android
+        run: |
+          unzip -oq MiIPTV_Efecto_Compilacion_Automatica.zip -d .
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app settings.gradle.kts build.gradle.kts gradle.properties gradle
+          git commit -m "Extraer fuentes Android para actualizar la app" || true
+          git push
