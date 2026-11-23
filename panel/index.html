@@ -6,6 +6,7 @@
 <section id="login" class="card"><h2>Ingresar al panel</h2><label>Correo administrador</label><input id="email" type="email" autocomplete="username"><label>Contraseña</label><input id="password" type="password" autocomplete="current-password"><label style="display:flex;align-items:center;gap:9px;margin:14px 0;cursor:pointer"><input id="rememberAccess" type="checkbox" style="width:19px;height:19px;margin:0;accent-color:#1688ee"> Recordar mi acceso en este dispositivo</label><p class="muted">Si lo tildás, el panel mantendrá tu sesión iniciada. No guardamos tu contraseña en texto.</p><p id="loginMsg" class="notice"></p><button id="loginBtn">Ingresar</button></section>
 <section id="app" class="hidden"><div class="row"><h2>Administración</h2><button id="logout" class="secondary">Cerrar sesión</button></div>
 <div class="card"><h2>Listas generales para TODOS los clientes</h2><label>Lista principal (URL M3U)</label><input id="globalPrimary" placeholder="https://..."><label>Lista secundaria / respaldo (opcional)</label><input id="globalSecondary" placeholder="https://..."><p class="muted">Todos los clientes reciben estas mismas listas. Al cambiarlas acá no hace falta reinstalar la APK.</p><p id="globalMsg" class="notice"></p><button id="saveGlobal">Guardar listas generales</button></div>
+<div class="card"><h2>Actualización de la APK</h2><p class="muted">La aplicación solo mostrará el aviso cuando vos autorices una actualización desde este panel. Si está desautorizada, no molesta al iniciar.</p><label>Versión (número mayor que el instalado)</label><input id="appVersionCode" type="number" min="1" placeholder="Ej. 5"><label>Nombre de versión</label><input id="appVersionName" placeholder="EFECTO TV Última"><label>Enlace directo HTTPS de la APK</label><input id="appApkUrl" placeholder="https://.../Efecto-TV-Ultima.apk"><label>Mensaje para el cliente (opcional)</label><input id="appUpdateMessage" maxlength="300" placeholder="Hay una nueva versión disponible."><label style="display:flex;align-items:center;gap:9px;cursor:pointer"><input id="appUpdateAuthorized" type="checkbox" style="width:19px;height:19px;margin:0;accent-color:#1688ee"> Autorizar y mostrar actualización en EFECTO TV</label><p id="appUpdateMsg" class="notice"></p><div class="row"><button id="saveAppUpdate">Guardar autorización</button><button id="revokeAppUpdate" class="secondary">Desautorizar aviso</button></div></div>
 <div class="card"><h2>Crear usuario</h2><div class="grid"><div><label>Usuario</label><input id="newUser" placeholder="cliente01"></div><div><label>Contraseña</label><input id="newPass" type="password"></div><div><label>Días de validez</label><input id="days" type="number" min="1" max="3650" value="30"></div></div><p id="createMsg" class="notice"></p><button id="createBtn">Crear cuenta</button></div>
 <div class="card"><div class="row"><h2>Usuarios registrados</h2><button id="refresh" class="secondary">Actualizar</button></div><div id="users"><div class="empty">Cargando...</div></div></div></section>
 </main><script>
@@ -22,7 +23,7 @@ async function init(){
  sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{auth:{storage:authStorage,persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
  const r=await sb.auth.getSession();session=r.data.session;if(session)showApp();
 }
-function showApp(){$("login").classList.add("hidden");$("app").classList.remove("hidden");loadGlobal();loadUsers()}
+function showApp(){$("login").classList.add("hidden");$("app").classList.remove("hidden");loadGlobal();loadUsers();loadAppUpdate()}
 async function call(action,data={}){
  const result=await sb.functions.invoke("admin-api",{body:{action,...data},headers:{Authorization:"Bearer "+session.access_token}});
  if(result.error){let detail=result.error.message||"Error de función";try{const ctx=result.error.context;if(ctx){const body=await ctx.clone().json();if(body&&body.error)detail=body.error;else detail=JSON.stringify(body)}}catch(e){}throw Error(detail)}if(result.data&&result.data.error)throw Error(result.data.error);return result.data;
@@ -31,6 +32,16 @@ $("loginBtn").onclick=async()=>{
  try{msg("loginMsg","");if($("rememberAccess").checked){localStorage.setItem(rememberKey,"1")}else{localStorage.removeItem(rememberKey);localStorage.removeItem("sb-zumorvkalqehzztvosce-auth-token");}const r=await sb.auth.signInWithPassword({email:$("email").value,password:$("password").value});if(r.error)throw r.error;session=r.data.session;showApp()}catch(e){msg("loginMsg",e.message)}
 };
 $("logout").onclick=async()=>{await sb.auth.signOut();localStorage.removeItem(rememberKey);session=null;$("app").classList.add("hidden");$("login").classList.remove("hidden")};
+async function loadAppUpdate(){
+ try{const r=await call("get_app_update");$("appVersionCode").value=r.version_code||"";$("appVersionName").value=r.version_name||"";$("appApkUrl").value=r.apk_url||"";$("appUpdateMessage").value=r.message||"";$("appUpdateAuthorized").checked=!!r.authorized;msg("appUpdateMsg",r.authorized?"Actualización AUTORIZADA.":"Aviso desautorizado: no aparecerá en la app.")}
+ catch(e){msg("appUpdateMsg","No se pudo cargar: "+e.message)}
+}
+async function saveAppUpdate(authorized){
+ try{await call("set_app_update",{authorized,version_code:Number($("appVersionCode").value),version_name:$("appVersionName").value.trim(),apk_url:$("appApkUrl").value.trim(),message:$("appUpdateMessage").value.trim()});$("appUpdateAuthorized").checked=authorized;msg("appUpdateMsg",authorized?"Actualización autorizada. EFECTO TV mostrará el aviso si corresponde.":"Actualización desautorizada.");}
+ catch(e){msg("appUpdateMsg","Error: "+e.message)}
+}
+$("saveAppUpdate").onclick=()=>saveAppUpdate($("appUpdateAuthorized").checked);
+$("revokeAppUpdate").onclick=()=>saveAppUpdate(false);
 async function loadGlobal(){
  try{const r=await call("global_lists");$("globalPrimary").value=r.primary_url||"";$("globalSecondary").value=r.secondary_url||""}
  catch(e){msg("globalMsg","No se pudieron cargar las listas: "+e.message)}
