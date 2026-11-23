@@ -243,7 +243,7 @@ fun MiIptvApp() {
             }
 
             Column(Modifier.fillMaxSize().then(if (isFullscreen) Modifier else Modifier.padding(horizontal = 18.dp, vertical = 14.dp))) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                if (!isFullscreen) Row(verticalAlignment = Alignment.CenterVertically) {
                     Column {
                         Text("MI IPTV", color = White, fontSize = 24.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
                         Text("EFECTO", color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 4.sp)
