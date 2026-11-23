@@ -100,6 +100,7 @@ fun MiIptvApp() {
     var customerUsername by remember { mutableStateOf("") }
     var customerPassword by remember { mutableStateOf("") }
     var rememberCustomerLogin by remember { mutableStateOf(false) }
+    var updateDialog by remember { mutableStateOf<Triple<String, String, String>?>(null) }
 
     val securePrefs = remember {
         val masterKey = MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build()
@@ -145,6 +146,17 @@ fun MiIptvApp() {
                 .putStringSet("favorites", favorites).putString("profiles", array.toString())
                 .putString("active_profile", activeProfileId).putBoolean("auto_backup", autoBackup).apply()
         }
+    }
+
+
+    // Consulta silenciosa: el panel solo habilita el aviso cuando el administrador lo autoriza.
+    LaunchedEffect(Unit) {
+        try {
+            val info = withContext(Dispatchers.IO) { fetchAuthorizedAppUpdate() }
+            if (info != null && info.first > BuildConfig.VERSION_CODE) {
+                updateDialog = Triple(info.second, info.third, info.fourth)
+            }
+        } catch (_: Exception) { /* sin aviso si no hay conexión */ }
     }
 
     val httpFactory = remember {
@@ -277,6 +289,22 @@ fun MiIptvApp() {
         primary = Cyan, background = Navy, surface = Panel, onPrimary = Navy,
         onBackground = White, onSurface = White, secondary = Cyan
     )) {
+
+        if (updateDialog != null) {
+            AlertDialog(
+                onDismissRequest = { updateDialog = null },
+                title = { Text("Nueva actualización de EFECTO TV") },
+                text = { Text(updateDialog!!.second.ifBlank { "El administrador autorizó una nueva versión." }) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        val link = updateDialog!!.third
+                        updateDialog = null
+                        try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link))) } catch (_: Exception) { }
+                    }) { Text("ACTUALIZAR APK") }
+                },
+                dismissButton = { TextButton(onClick = { updateDialog = null }) { Text("Ahora no") } }
+            )
+        }
         Row(Modifier.fillMaxSize().background(Navy)) {
             if (authenticated) {
 
@@ -1112,3 +1140,25 @@ private fun checkLatestAppRelease(): Pair<Int, String>? {
         if (apkUrl.isBlank()) null else version to apkUrl
     } catch (_: Exception) { null } finally { connection.disconnect() }
 }
+
+private fun fetchAuthorizedAppUpdate(): QuadUpdate? {
+    val connection = (URL("https://zumorvkalqehzztvosce.supabase.co/functions/v1/app-update-check").openConnection() as HttpURLConnection).apply {
+        requestMethod = "GET"
+        connectTimeout = 8000
+        readTimeout = 8000
+        setRequestProperty("apikey", "sb_publishable_feT-R_JGExnqwyIrJgw4TQ_H3I0PVXS")
+    }
+    return try {
+        val body = connection.inputStream.bufferedReader().use { it.readText() }
+        val json = org.json.JSONObject(body)
+        if (!json.optBoolean("authorized", false)) null else {
+            val code = json.optInt("version_code", 0)
+            val name = json.optString("version_name", "")
+            val url = json.optString("apk_url", "")
+            val message = json.optString("message", "")
+            if (code <= 0 || !url.startsWith("https://")) null else QuadUpdate(code, name, message, url)
+        }
+    } finally { connection.disconnect() }
+}
+private data class QuadUpdate(val first: Int, val second: String, val third: String, val fourth: String)
+
