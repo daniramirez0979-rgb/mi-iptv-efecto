@@ -974,8 +974,43 @@ private fun loadProfileChannels(profile: PlaylistProfile): List<Channel> {
         val api = "$base/player_api.php?username=${Uri.encode(profile.username)}&password=${Uri.encode(profile.password)}&action=get_live_streams"
         parseXtream(downloadText(api), base, profile.username, profile.password)
     } else {
-        val body = downloadText(profile.address)
-        parseM3u(body)
+        downloadM3uChannels(profile.address)
+    }
+}
+
+// Lee la lista M3U línea por línea para evitar cargar archivos gigantes completos
+// en memoria, algo que puede cerrar la app en TV Box con poca RAM.
+private fun downloadM3uChannels(address: String): List<Channel> {
+    val connection = URL(address).openConnection() as HttpURLConnection
+    connection.connectTimeout = 20000
+    connection.readTimeout = 30000
+    connection.instanceFollowRedirects = true
+    connection.setRequestProperty("User-Agent", "VLC/3.0.20 LibVLC/3.0.20")
+    connection.setRequestProperty("Accept", "*/*")
+    return try {
+        val code = connection.responseCode
+        if (code !in 200..299) error("El servidor respondió HTTP $code")
+        val result = mutableListOf<Channel>()
+        var name = "Canal"
+        var group = "Canales"
+        connection.inputStream.bufferedReader(Charsets.UTF_8).use { reader ->
+            while (true) {
+                val raw = reader.readLine() ?: break
+                val line = raw.trim()
+                if (line.startsWith("#EXTINF", true)) {
+                    name = line.substringAfterLast(',').trim().ifBlank { "Canal" }
+                    group = Regex("""group-title="([^"]*)"""").find(line)?.groupValues?.get(1) ?: "Canales"
+                } else if (line.isNotBlank() && !line.startsWith("#") &&
+                    (line.startsWith("http://") || line.startsWith("https://"))) {
+                    result.add(Channel(name, line, group))
+                    name = "Canal"
+                    group = "Canales"
+                }
+            }
+        }
+        result
+    } finally {
+        connection.disconnect()
     }
 }
 
