@@ -28,7 +28,7 @@ async function call(action,data={}){
  if(result.error)throw result.error;if(result.data&&result.data.error)throw Error(result.data.error);return result.data;
 }
 $("loginBtn").onclick=async()=>{
- try{msg("loginMsg","");if($("rememberAccess").checked){localStorage.setItem(rememberKey,"1")}else{localStorage.removeItem(rememberKey);localStorage.clear();}const r=await sb.auth.signInWithPassword({email:$("email").value,password:$("password").value});if(r.error)throw r.error;session=r.data.session;showApp()}catch(e){msg("loginMsg",e.message)}
+ try{msg("loginMsg","");if($("rememberAccess").checked){localStorage.setItem(rememberKey,"1")}else{localStorage.removeItem(rememberKey);localStorage.removeItem("sb-zumorvkalqehzztvosce-auth-token");}const r=await sb.auth.signInWithPassword({email:$("email").value,password:$("password").value});if(r.error)throw r.error;session=r.data.session;showApp()}catch(e){msg("loginMsg",e.message)}
 };
 $("logout").onclick=async()=>{await sb.auth.signOut();localStorage.removeItem(rememberKey);session=null;$("app").classList.add("hidden");$("login").classList.remove("hidden")};
 async function loadGlobal(){
