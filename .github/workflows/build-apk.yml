@@ -133,26 +133,22 @@ jobs:
           cp "$APK_PATH" Efecto-TV-Ultima.apk
           test -s Efecto-TV-Ultima.apk
 
-      - name: Comparar paquete y firma con la APK 104
+      - name: Verificar identidad de la nueva aplicación
         id: compatibility
         run: |
           set -e
           BUILD_TOOLS="$ANDROID_HOME/build-tools/35.0.0"
-          curl -fLsS "https://github.com/daniramirez0979-rgb/mi-iptv-efecto/releases/download/tv-104/Efecto-TV-Ultima.apk" -o /tmp/efecto-104.apk
-          OLD_PACKAGE="$("$BUILD_TOOLS/aapt" dump badging /tmp/efecto-104.apk | sed -n "s/^package: name='\\([^']*\\)'.*/\\1/p" | head -n1)"
           NEW_PACKAGE="$("$BUILD_TOOLS/aapt" dump badging Efecto-TV-Ultima.apk | sed -n "s/^package: name='\\([^']*\\)'.*/\\1/p" | head -n1)"
-          OLD_CERT="$("$BUILD_TOOLS/apksigner" verify --print-certs /tmp/efecto-104.apk | sed -n 's/.*certificate SHA-256 digest: //p' | head -n1)"
           NEW_CERT="$("$BUILD_TOOLS/apksigner" verify --print-certs Efecto-TV-Ultima.apk | sed -n 's/.*certificate SHA-256 digest: //p' | head -n1)"
-          echo "APK 104 package: $OLD_PACKAGE"
-          echo "APK nueva package: $NEW_PACKAGE"
-          echo "APK 104 certificate SHA-256: $OLD_CERT"
-          echo "APK nueva certificate SHA-256: $NEW_CERT"
-          if [ -n "$OLD_PACKAGE" ] && [ "$OLD_PACKAGE" = "$NEW_PACKAGE" ] && [ -n "$OLD_CERT" ] && [ "$OLD_CERT" = "$NEW_CERT" ]; then
+          echo "Paquete de la nueva app: $NEW_PACKAGE"
+          echo "Certificado SHA-256: $NEW_CERT"
+          if [ "$NEW_PACKAGE" = "com.efectolimpio.miiptvefecto.nueva2" ] && [ -n "$NEW_CERT" ]; then
             echo "UPDATE_COMPATIBLE=true" >> "$GITHUB_ENV"
-            echo "Paquete y firma compatibles con la 104."
+            echo "Identidad nueva verificada."
           else
             echo "UPDATE_COMPATIBLE=false" >> "$GITHUB_ENV"
-            echo "::warning::La APK nueva no coincide en paquete y/o firma con la 104; no se publicará como actualización."
+            echo "::error::La APK no tiene la identidad esperada; no se publicará."
+            exit 1
           fi
 
       - name: Guardar APK
