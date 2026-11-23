@@ -97,6 +97,7 @@ fun MiIptvApp() {
     var loginError by remember { mutableStateOf("") }
     var customerUsername by remember { mutableStateOf("") }
     var customerPassword by remember { mutableStateOf("") }
+    var rememberCustomerLogin by remember { mutableStateOf(false) }
 
 
     val securePrefs = remember {
@@ -123,6 +124,11 @@ fun MiIptvApp() {
         } catch (_: Exception) { emptyList() }
         activeProfileId = securePrefs.getString("active_profile", "") ?: ""
         autoBackup = securePrefs.getBoolean("auto_backup", true)
+        rememberCustomerLogin = securePrefs.getBoolean("remember_customer_login", false)
+        if (rememberCustomerLogin) {
+            customerUsername = securePrefs.getString("customer_username", "") ?: ""
+            customerPassword = securePrefs.getString("customer_password", "") ?: ""
+        }
         prefsLoaded = true
     }
     LaunchedEffect(playlistUrl, host, username, password, favorites, rememberAccess, prefsLoaded, profiles, activeProfileId, autoBackup) {
@@ -547,6 +553,20 @@ fun MiIptvApp() {
                 LoginScreen(
                     busy = loginBusy,
                     error = loginError,
+                    savedUsername = customerUsername,
+                    savedPassword = customerPassword,
+                    rememberLogin = rememberCustomerLogin,
+                    onRememberLoginChange = { enabled ->
+                        rememberCustomerLogin = enabled
+                        if (enabled) {
+                            securePrefs.edit().putBoolean("remember_customer_login", true).apply()
+                        } else {
+                            securePrefs.edit().putBoolean("remember_customer_login", false)
+                                .remove("customer_username").remove("customer_password").apply()
+                            customerUsername = ""
+                            customerPassword = ""
+                        }
+                    },
                     onLogin = { user, pass ->
                         scope.launch {
                             loginBusy = true
@@ -572,6 +592,11 @@ fun MiIptvApp() {
                                 require(active != null && loadedChannels.isNotEmpty()) { "No se pudo cargar ninguna lista. Probá más tarde o contactá al administrador." }
                                 customerUsername = user
                                 customerPassword = pass
+                                if (rememberCustomerLogin) {
+                                    securePrefs.edit().putBoolean("remember_customer_login", true)
+                                        .putString("customer_username", user)
+                                        .putString("customer_password", pass).apply()
+                                }
                                 profiles = loaded
                                 activeProfileId = active!!.id
                                 playlistUrl = active!!.address
@@ -802,10 +827,14 @@ private fun customerLogin(username: String, password: String): CustomerSession {
 @Composable private fun LoginScreen(
     busy: Boolean,
     error: String,
+    savedUsername: String,
+    savedPassword: String,
+    rememberLogin: Boolean,
+    onRememberLoginChange: (Boolean) -> Unit,
     onLogin: (String, String) -> Unit
 ) {
-    var username by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
+    var username by remember(savedUsername) { mutableStateOf(savedUsername) }
+    var password by remember(savedPassword) { mutableStateOf(savedPassword) }
     Box(Modifier.fillMaxSize().background(Navy).padding(24.dp), contentAlignment = Alignment.Center) {
         Card(Modifier.fillMaxWidth().widthIn(max = 420.dp), colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(22.dp)) {
             Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -815,6 +844,14 @@ private fun customerLogin(username: String, password: String): CustomerSession {
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(username, { username = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Usuario") }, singleLine = true)
                 OutlinedTextField(password, { password = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Contraseña") }, singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation())
+                Row(Modifier.fillMaxWidth().clickable { onRememberLoginChange(!rememberLogin) }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = rememberLogin, onCheckedChange = onRememberLoginChange, colors = CheckboxDefaults.colors(checkedColor = Cyan, checkmarkColor = Navy))
+                    Spacer(Modifier.width(6.dp))
+                    Column {
+                        Text("Recordar usuario y contraseña", color = White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Se guardan cifrados en este dispositivo", color = Muted, fontSize = 10.sp)
+                    }
+                }
                 if (error.isNotBlank()) Text(error, color = Color(0xFFFF8A80), fontSize = 12.sp)
                 Button(onClick = { onLogin(username.trim(), password) }, enabled = !busy && username.isNotBlank() && password.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
                     if (busy) CircularProgressIndicator(Modifier.size(18.dp), color = Navy, strokeWidth = 2.dp)
