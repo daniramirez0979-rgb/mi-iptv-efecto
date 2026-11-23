@@ -70,6 +70,12 @@ jobs:
           }
           """)
           print("Compatibilidad Java/Kotlin 17 aplicada en", p)
+          src = Path('app/src/main/java/com/efectolimpio/miiptvefecto/MainActivity.kt')
+          if src.exists():
+              lines = src.read_text().splitlines()
+              print("MainActivity.kt líneas 225-238:")
+              for n in range(224, min(238, len(lines))):
+                  print(f"{n+1}: {lines[n]}")
           PY
 
       - name: Compilar APK
