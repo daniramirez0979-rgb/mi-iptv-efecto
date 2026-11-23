@@ -71,11 +71,15 @@ jobs:
           """)
           print("Compatibilidad Java/Kotlin 17 aplicada en", p)
           src = Path('app/src/main/java/com/efectolimpio/miiptvefecto/MainActivity.kt')
-          if src.exists():
-              lines = src.read_text().splitlines()
-              print("MainActivity.kt líneas 225-238:")
-              for n in range(224, min(238, len(lines))):
-                  print(f"{n+1}: {lines[n]}")
+          if not src.exists():
+              raise SystemExit("No se encontró MainActivity.kt")
+          code = src.read_text()
+          bad = "AndroidView(factory = { ctx -> PlayerView(ctx).apply { player = this@MiIptvApp.player; useController = true } },"
+          good = "val activePlayer = player\n                    AndroidView(factory = { ctx -> PlayerView(ctx).apply { this.player = activePlayer; useController = true } },"
+          if bad not in code:
+              raise SystemExit("No se encontró la línea del reproductor que debe corregirse")
+          src.write_text(code.replace(bad, good, 1))
+          print("Corregida referencia del reproductor en MainActivity.kt")
           PY
 
       - name: Compilar APK
