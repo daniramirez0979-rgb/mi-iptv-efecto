@@ -53,7 +53,6 @@ private val White = Color(0xFFF4F8FB)
 private val Muted = Color(0xFF9BB2C2)
 
 // Limita el consumo de memoria al iniciar sesión en TV Box con poca RAM.
-private const val MAX_M3U_CHANNELS = 10000
 
 data class Channel(val name: String, val url: String, val group: String = "Canales")
 data class CatalogItem(val id: String, val name: String, val category: String, val image: String = "", val extension: String = "mp4")
@@ -1033,11 +1032,9 @@ private fun downloadM3uChannels(address: String): List<Channel> {
                     group = Regex("""group-title="([^"]*)"""").find(line)?.groupValues?.get(1) ?: "Canales"
                 } else if (line.isNotBlank() && !line.startsWith("#") &&
                     (line.startsWith("http://") || line.startsWith("https://"))) {
-                    if (result.size >= MAX_M3U_CHANNELS) break
                     result.add(Channel(name, line, group))
                     name = "Canal"
                     group = "Canales"
-                    if (result.size >= MAX_M3U_CHANNELS) break
                 }
             }
         }
