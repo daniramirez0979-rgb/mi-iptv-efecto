@@ -31,8 +31,10 @@ jobs:
             printf '%s' "$ANDROID_DEBUG_KEYSTORE_BASE64" | base64 --decode > "$HOME/.android/debug.keystore"
             keytool -list -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey >/dev/null
             echo "Firma permanente restaurada."
+            echo "SIGNING_READY=true" >> "$GITHUB_ENV"
           else
-            echo "Sin firma permanente: Gradle generará una firma nueva. Para instalar esta APK habrá que desinstalar la anterior."
+            echo "Sin firma permanente: se compila el artefacto de prueba, pero NO se publica como actualización."
+            echo "SIGNING_READY=false" >> "$GITHUB_ENV"
           fi
 
       - name: Preparar Android SDK
@@ -139,6 +141,7 @@ jobs:
           if-no-files-found: error
 
       - name: Publicar actualización para la APK
+        if: env.SIGNING_READY == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: tv-${{ github.run_number }}
