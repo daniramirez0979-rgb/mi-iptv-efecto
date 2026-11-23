@@ -89,6 +89,20 @@ jobs:
                   print("El reproductor ya tiene la referencia actualizada; se conserva el código")
           PY
 
+      - name: Asignar versión a la APK
+        run: |
+          python3 - <<'PY'
+          import os, re
+          from pathlib import Path
+          p = Path("app/build.gradle.kts")
+          s = p.read_text()
+          s, n = re.subn(r'versionCode\\s*=\\s*\\d+', 'versionCode = ' + os.environ["GITHUB_RUN_NUMBER"], s, count=1)
+          if n != 1:
+              raise SystemExit("No se pudo actualizar versionCode")
+          p.write_text(s)
+          print("Versión de APK:", os.environ["GITHUB_RUN_NUMBER"])
+          PY
+
       - name: Compilar APK
         run: |
           PROJECT_DIR="$(dirname "$(find . -type f \( -name settings.gradle -o -name settings.gradle.kts \) | head -n 1)")"
