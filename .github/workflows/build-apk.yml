@@ -21,13 +21,15 @@ jobs:
       - name: Preparar Android SDK
         run: |
           SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -n 1)"
-          echo "SDK manager encontrado: $SDKMANAGER"
           test -n "$SDKMANAGER"
           yes | "$SDKMANAGER" --licenses
           "$SDKMANAGER" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
       - name: Descomprimir proyecto
-        run: unzip -oq MiIPTV_Efecto_Compilacion_Automatica.zip -d .
+        run: |
+          unzip -oq MiIPTV_Efecto_Compilacion_Automatica.zip -d .
+          echo "Contenido del proyecto:"
+          find . -maxdepth 5 \( -name settings.gradle -o -name settings.gradle.kts -o -name gradlew \) -print
 
       - name: Configurar Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -36,12 +38,15 @@ jobs:
 
       - name: Compilar APK
         run: |
-          cd iptv_project
+          PROJECT_DIR="$(dirname "$(find . -type f \( -name settings.gradle -o -name settings.gradle.kts \) | head -n 1)")"
+          test -n "$PROJECT_DIR"
+          echo "Compilando desde: $PROJECT_DIR"
+          cd "$PROJECT_DIR"
           gradle --no-daemon assembleDebug
 
       - name: Guardar APK
         uses: actions/upload-artifact@v4
         with:
           name: Mi-IPTV-Efecto-APK
-          path: iptv_project/app/build/outputs/apk/debug/app-debug.apk
+          path: "**/app/build/outputs/apk/debug/app-debug.apk"
           if-no-files-found: error
