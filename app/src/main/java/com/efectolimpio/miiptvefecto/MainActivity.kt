@@ -103,6 +103,35 @@ fun MiIptvApp() {
     var customerPassword by remember { mutableStateOf("") }
     var rememberCustomerLogin by remember { mutableStateOf(false) }
     var updateDialog by remember { mutableStateOf<Triple<String, String, String>?>(null) }
+    LaunchedEffect(section, authenticated, customerUsername, customerPassword, host, username, password) {
+        if (authenticated && section == Section.MOVIES && movies.isEmpty() && !loading) {
+            loading = true
+            status = "Cargando películas…"
+            try {
+                val json = withContext(Dispatchers.IO) {
+                    customerCatalog(customerUsername, customerPassword, "get_vod_streams")
+                }
+                movies = parseCatalog(json)
+                status = if (movies.isEmpty()) "El proveedor devolvió el catálogo de películas vacío." else "Películas cargadas: ${movies.size}"
+            } catch (e: Exception) {
+                status = "Error en películas: ${e.message ?: "intentá nuevamente"}"
+            } finally { loading = false }
+        }
+        if (authenticated && section == Section.SERIES && series.isEmpty() && !loading) {
+            loading = true
+            status = "Cargando series…"
+            try {
+                val json = withContext(Dispatchers.IO) {
+                    customerCatalog(customerUsername, customerPassword, "get_series")
+                }
+                series = parseCatalog(json)
+                status = if (series.isEmpty()) "El proveedor devolvió el catálogo de series vacío." else "Series cargadas: ${series.size}"
+            } catch (e: Exception) {
+                status = "Error en series: ${e.message ?: "intentá nuevamente"}"
+            } finally { loading = false }
+        }
+    }
+
 
     val securePrefs = remember {
         val masterKey = MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build()
