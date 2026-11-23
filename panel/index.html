@@ -25,7 +25,7 @@ async function init(){
 function showApp(){$("login").classList.add("hidden");$("app").classList.remove("hidden");loadGlobal();loadUsers()}
 async function call(action,data={}){
  const result=await sb.functions.invoke("admin-api",{body:{action,...data},headers:{Authorization:"Bearer "+session.access_token}});
- if(result.error)throw result.error;if(result.data&&result.data.error)throw Error(result.data.error);return result.data;
+ if(result.error){let detail=result.error.message||"Error de función";try{const ctx=result.error.context;if(ctx){const body=await ctx.clone().json();if(body&&body.error)detail=body.error;else detail=JSON.stringify(body)}}catch(e){}throw Error(detail)}if(result.data&&result.data.error)throw Error(result.data.error);return result.data;
 }
 $("loginBtn").onclick=async()=>{
  try{msg("loginMsg","");if($("rememberAccess").checked){localStorage.setItem(rememberKey,"1")}else{localStorage.removeItem(rememberKey);localStorage.removeItem("sb-zumorvkalqehzztvosce-auth-token");}const r=await sb.auth.signInWithPassword({email:$("email").value,password:$("password").value});if(r.error)throw r.error;session=r.data.session;showApp()}catch(e){msg("loginMsg",e.message)}
