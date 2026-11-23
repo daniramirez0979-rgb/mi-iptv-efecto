@@ -317,6 +317,19 @@ fun MiIptvApp() {
                         Spacer(Modifier.height(8.dp))
                     }
                     val activePlayer = player
+                    if (!isFullscreen) {
+                        Button(
+                            onClick = { isFullscreen = true },
+                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Cyan, contentColor = Navy)
+                        ) {
+                            Icon(Icons.Default.Fullscreen, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("VER EN PANTALLA COMPLETA", fontWeight = FontWeight.ExtraBold)
+                        }
+                        Spacer(Modifier.height(8.dp))
+                    }
                     AndroidView(factory = { ctx ->
                         PlayerView(ctx).apply {
                             this.player = activePlayer
