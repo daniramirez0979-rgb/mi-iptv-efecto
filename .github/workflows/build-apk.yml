@@ -27,7 +27,9 @@ jobs:
 
       - name: Descomprimir proyecto
         run: |
-          unzip -oq MiIPTV_Efecto_Compilacion_Automatica.zip -d .
+          if [ ! -f app/src/main/java/com/efectolimpio/miiptvefecto/MainActivity.kt ]; then
+            unzip -oq MiIPTV_Efecto_Compilacion_Automatica.zip -d .
+          fi
           find . -maxdepth 6 \( -name settings.gradle -o -name settings.gradle.kts \) -print
 
       - name: Configurar Gradle
