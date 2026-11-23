@@ -103,13 +103,13 @@ fun MiIptvApp() {
     var customerPassword by remember { mutableStateOf("") }
     var rememberCustomerLogin by remember { mutableStateOf(false) }
     var updateDialog by remember { mutableStateOf<Triple<String, String, String>?>(null) }
-    LaunchedEffect(section, authenticated, customerUsername, customerPassword, host, username, password) {
+    LaunchedEffect(section, authenticated, customerUsername, customerPassword, playlistUrl, host, username, password) {
         if (authenticated && section == Section.MOVIES && movies.isEmpty() && !loading) {
             loading = true
             status = "Cargando películas…"
             try {
                 val json = withContext(Dispatchers.IO) {
-                    customerCatalog(customerUsername, customerPassword, "get_vod_streams")
+                    providerCatalog(playlistUrl, "get_vod_streams")
                 }
                 movies = parseCatalog(json)
                 status = if (movies.isEmpty()) "El proveedor devolvió el catálogo de películas vacío." else "Películas cargadas: ${movies.size}"
@@ -122,7 +122,7 @@ fun MiIptvApp() {
             status = "Cargando series…"
             try {
                 val json = withContext(Dispatchers.IO) {
-                    customerCatalog(customerUsername, customerPassword, "get_series")
+                    providerCatalog(playlistUrl, "get_series")
                 }
                 series = parseCatalog(json)
                 status = if (series.isEmpty()) "El proveedor devolvió el catálogo de series vacío." else "Series cargadas: ${series.size}"
@@ -656,7 +656,7 @@ fun MiIptvApp() {
                                     loading = true; status = "Cargando películas…"
                                     try {
                                         val json = withContext(Dispatchers.IO) {
-                                            if (authenticated) customerCatalog(customerUsername, customerPassword, "get_vod_streams")
+                                            if (authenticated) providerCatalog(playlistUrl, "get_vod_streams")
                                             else downloadText("$host/player_api.php?username=${Uri.encode(username)}&password=${Uri.encode(password)}&action=get_vod_streams")
                                         }
                                         movies = parseCatalog(json)
@@ -670,7 +670,7 @@ fun MiIptvApp() {
                                     loading = true; status = "Cargando series…"
                                     try {
                                         val json = withContext(Dispatchers.IO) {
-                                            if (authenticated) customerCatalog(customerUsername, customerPassword, "get_series")
+                                            if (authenticated) providerCatalog(playlistUrl, "get_series")
                                             else downloadText("$host/player_api.php?username=${Uri.encode(username)}&password=${Uri.encode(password)}&action=get_series")
                                         }
                                         series = parseCatalog(json)
@@ -1063,7 +1063,7 @@ private fun downloadM3uChannels(address: String): List<Channel> {
                     group = Regex("""group-title="([^"]*)"""").find(line)?.groupValues?.get(1) ?: "Canales"
                 } else if (line.isNotBlank() && !line.startsWith("#") &&
                     (line.startsWith("http://") || line.startsWith("https://"))) {
-                    result.add(Channel(name, line, group))
+                    if (isLivePlaylistEntry(group, line)) result.add(Channel(name, line, group))
                     name = "Canal"
                     group = "Canales"
                 }
@@ -1085,7 +1085,7 @@ private fun parseM3u(text: String): List<Channel> {
             group = Regex("""group-title="([^"]*)"""").find(line)?.groupValues?.get(1) ?: "Canales"
         } else if (line.isNotBlank() && !line.startsWith("#") &&
             (line.startsWith("http://") || line.startsWith("https://"))) {
-            result += Channel(name, line, group); name = "Canal"; group = "Canales"
+            if (isLivePlaylistEntry(group, line)) result += Channel(name, line, group); name = "Canal"; group = "Canales"
         }
     }
     return result
@@ -1110,6 +1110,13 @@ private data class ProviderAccess(val host: String, val username: String, val pa
     fun movieUrl(id: String, ext: String) = "$host/movie/${Uri.encode(username)}/${Uri.encode(password)}/$id.$ext"
     fun seriesInfoUrl(id: String) = "$host/player_api.php?username=${Uri.encode(username)}&password=${Uri.encode(password)}&action=get_series_info&series_id=${Uri.encode(id)}"
 }
+private fun providerCatalog(address: String, action: String): String {
+    require(action == "get_vod_streams" || action == "get_series") { "Catálogo inválido." }
+    val access = providerAccess(address) ?: error("No se pudieron leer las credenciales de la lista principal.")
+    val api = "${access.host}/player_api.php?username=${Uri.encode(access.username)}&password=${Uri.encode(access.password)}&action=${action}"
+    return downloadText(api)
+}
+
 private fun providerAccess(address: String): ProviderAccess? {
     return try {
         val uri = Uri.parse(address)
@@ -1122,27 +1129,69 @@ private fun providerAccess(address: String): ProviderAccess? {
     } catch (_: Exception) { null }
 }
 
+private fun isLivePlaylistEntry(group: String, url: String): Boolean {
+    val g = group.lowercase()
+    val u = url.lowercase()
+    val vodGroup = listOf("pelicul", "movie", "film", "vod", "serie", "series", "temporada", "episodio", "episode", "anime", "cine")
+        .any { g.contains(it) }
+    val vodPath = listOf("/movie/", "/series/", "/vod/").any { u.contains(it) }
+    val vodFile = listOf(".mkv", ".avi", ".mp4", ".mov", ".wmv").any { u.substringBefore('?').endsWith(it) }
+    return !vodGroup && !vodPath && !vodFile
+}
+
 private fun parseCatalog(json: String): List<CatalogItem> {
-    val root = org.json.JSONTokener(json).nextValue()
-    val array = when (root) {
-        is org.json.JSONArray -> root
-        is org.json.JSONObject -> root.optJSONArray("data") ?: root.optJSONArray("items")
-            ?: root.optJSONArray("results") ?: root.optJSONArray("streams")
-            ?: root.optJSONArray("series") ?: org.json.JSONArray()
-        else -> org.json.JSONArray()
+    val root = org.json.JSONTokener(json.trim().removePrefix("\uFEFF")).nextValue()
+    val arrays = mutableListOf<org.json.JSONArray>()
+    when (root) {
+        is org.json.JSONArray -> arrays.add(root)
+        is org.json.JSONObject -> {
+            val keys = listOf("data", "items", "results", "streams", "series", "movie_data", "vod", "list", "response")
+            keys.forEach { key -> root.optJSONArray(key)?.let { arrays.add(it) } }
+            if (arrays.isEmpty()) {
+                val values = root.keys()
+                val collected = org.json.JSONArray()
+                while (values.hasNext()) {
+                    val value = root.opt(values.next())
+                    if (value is org.json.JSONObject) collected.put(value)
+                    else if (value is org.json.JSONArray) for (i in 0 until value.length()) collected.put(value.opt(i))
+                }
+                if (collected.length() > 0) arrays.add(collected)
+            }
+        }
     }
     val result = mutableListOf<CatalogItem>()
     val seen = mutableSetOf<String>()
-    for (i in 0 until array.length()) {
-        val item = array.optJSONObject(i) ?: continue
-        val id = item.optString("stream_id").ifBlank { item.optString("series_id") }
-            .ifBlank { item.optString("vod_id") }.ifBlank { item.optString("id") }
-        if (id.isBlank() || !seen.add(id)) continue
-        val name = item.optString("name").ifBlank { item.optString("title") }.ifBlank { "Contenido $id" }
-        val category = item.optString("category_name").ifBlank { item.optString("category") }.ifBlank { "Sin categoría" }
-        val image = item.optString("stream_icon").ifBlank { item.optString("cover") }.ifBlank { item.optString("cover_big") }
-        val extension = item.optString("container_extension").ifBlank { "mp4" }
-        result += CatalogItem(id, name, category, image, extension)
+    arrays.forEach { array ->
+        for (i in 0 until array.length()) {
+            val item = array.optJSONObject(i) ?: continue
+            val rawId = item.optString("stream_id").takeIf { it.isNotBlank() && it != "null" }
+                ?: item.optString("series_id").takeIf { it.isNotBlank() && it != "null" }
+                ?: item.optString("vod_id").takeIf { it.isNotBlank() && it != "null" }
+                ?: item.optString("id").takeIf { it.isNotBlank() && it != "null" }
+                ?: item.optString("streamId").takeIf { it.isNotBlank() && it != "null" }
+                ?: item.optString("seriesId").takeIf { it.isNotBlank() && it != "null" }
+                ?: item.optString("num").takeIf { it.isNotBlank() && it != "null" }
+            val name = item.optString("name").takeIf { it.isNotBlank() && it != "null" }
+                ?: item.optString("title").takeIf { it.isNotBlank() && it != "null" }
+                ?: item.optString("series_name").takeIf { it.isNotBlank() && it != "null" }
+                ?: "Contenido ${result.size + 1}"
+            val id = rawId ?: "item_${name.lowercase().hashCode()}_${result.size}"
+            if (!seen.add(id)) continue
+            val category = item.optString("category_name").takeIf { it.isNotBlank() && it != "null" }
+                ?: item.optString("category").takeIf { it.isNotBlank() && it != "null" }
+                ?: item.optString("category_id").takeIf { it.isNotBlank() && it != "null" }
+                ?: "Sin categoría"
+            val image = item.optString("stream_icon").takeIf { it.isNotBlank() && it != "null" }
+                ?: item.optString("cover").takeIf { it.isNotBlank() && it != "null" }
+                ?: item.optString("cover_big").takeIf { it.isNotBlank() && it != "null" }
+                ?: item.optString("movie_image").takeIf { it.isNotBlank() && it != "null" }
+                ?: item.optString("poster").takeIf { it.isNotBlank() && it != "null" }
+                ?: ""
+            val extension = item.optString("container_extension").takeIf { it.isNotBlank() && it != "null" }
+                ?: item.optString("extension").takeIf { it.isNotBlank() && it != "null" }
+                ?: "mp4"
+            result += CatalogItem(id, name, category, image, extension)
+        }
     }
     return result
 }
