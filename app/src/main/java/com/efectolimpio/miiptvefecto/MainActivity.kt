@@ -99,19 +99,6 @@ fun MiIptvApp() {
     var customerUsername by remember { mutableStateOf("") }
     var customerPassword by remember { mutableStateOf("") }
     var rememberCustomerLogin by remember { mutableStateOf(false) }
-    var updateAvailable by remember { mutableStateOf(false) }
-    var updateUrl by remember { mutableStateOf("") }
-    var updateChecked by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        val latest = withContext(Dispatchers.IO) { checkLatestAppRelease() }
-        if (latest != null && latest.first > BuildConfig.VERSION_CODE) {
-            updateAvailable = true
-            updateUrl = latest.second
-        }
-        updateChecked = true
-    }
-
 
     val securePrefs = remember {
         val masterKey = MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build()
@@ -177,9 +164,9 @@ fun MiIptvApp() {
             .setSeekForwardIncrementMs(10000)
             .build()
     }
+    // No cambiar orientación: evita recrear la pantalla y perder la sesión.
     LaunchedEffect(isFullscreen) {
         val activity = context as? android.app.Activity
-        activity?.requestedOrientation = if (isFullscreen) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         activity?.window?.decorView?.systemUiVisibility = if (isFullscreen) (
             View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
             View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
@@ -288,31 +275,12 @@ fun MiIptvApp() {
         primary = Cyan, background = Navy, surface = Panel, onPrimary = Navy,
         onBackground = White, onSurface = White, secondary = Cyan
     )) {
-        if (updateAvailable) {
-            AlertDialog(
-                onDismissRequest = { },
-                title = { Text("Actualización disponible") },
-                text = { Text("Hay una nueva versión de EFECTO TV. Actualizá antes de ingresar para tener las últimas mejoras.") },
-                confirmButton = {
-                    Button(onClick = {
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(updateUrl))
-                        context.startActivity(intent)
-                    }) { Text("ACTUALIZAR") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { updateAvailable = false }) { Text("Más tarde") }
-                },
-                containerColor = Panel,
-                titleContentColor = White,
-                textContentColor = Muted
-            )
-        }
         Row(Modifier.fillMaxSize().background(Navy)) {
             if (authenticated) {
 
             // Navigation rail works well on wide Android TV screens and tablets.
             if (!isFullscreen) Column(
-                Modifier.width(76.dp).fillMaxHeight().background(Color(0xFF06131F)).padding(vertical = 16.dp),
+                Modifier.width(58.dp).fillMaxHeight().background(Color(0xFF06131F)).padding(vertical = 10.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
@@ -329,14 +297,14 @@ fun MiIptvApp() {
                     ) {
                         Icon(sectionIcon(item), null, tint = if (active) Cyan else Muted, modifier = Modifier.size(22.dp))
                         Spacer(Modifier.height(4.dp))
-                        Text(item.label.substringBefore(" "), color = if (active) White else Muted, fontSize = 9.sp, fontWeight = if (active) FontWeight.Bold else FontWeight.Normal)
+                        Text(item.label.substringBefore(" "), color = if (active) White else Muted, fontSize = 10.sp, fontWeight = if (active) FontWeight.Bold else FontWeight.Normal)
                     }
                 }
                 Spacer(Modifier.weight(1f))
                 Text("1.1", color = Muted, fontSize = 10.sp)
             }
 
-            Column(Modifier.fillMaxSize().then(if (isFullscreen) Modifier else Modifier.padding(horizontal = 18.dp, vertical = 14.dp))) {
+            Column(Modifier.fillMaxSize().then(if (isFullscreen) Modifier else Modifier.padding(horizontal = 8.dp, vertical = 8.dp))) {
                 if (!isFullscreen) Row(verticalAlignment = Alignment.CenterVertically) {
                     Column {
                         Text("MI IPTV", color = White, fontSize = 24.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
@@ -345,7 +313,36 @@ fun MiIptvApp() {
                         Text("WHATSAPP 3765-149583", color = White, fontSize = 19.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
                     }
                     Spacer(Modifier.weight(1f))
-                    Text(if (channels.isEmpty()) "SIN LISTA CARGADA" else "${channels.size} CANALES", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(if (channels.isEmpty()) "SIN LISTA CARGADA" else "${channels.size} CANALES", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        TextButton(onClick = {
+                            scope.launch {
+                                loading = true
+                                status = "Actualizando canales desde el panel…"
+                                try {
+                                    val session = withContext(Dispatchers.IO) { customerLogin(customerUsername, customerPassword) }
+                                    val freshProfiles = session.playlists.mapIndexed { index, address ->
+                                        PlaylistProfile("server_$index", if (index == 0) "Lista principal" else "Lista secundaria", "M3U", address)
+                                    }
+                                    val activeIndex = activeProfileId.substringAfterLast("_", "0").toIntOrNull() ?: 0
+                                    val target = freshProfiles.getOrNull(activeIndex) ?: freshProfiles.first()
+                                    val freshChannels = withContext(Dispatchers.IO) { loadProfileChannels(target) }
+                                    require(freshChannels.isNotEmpty()) { "La lista está vacía o no respondió." }
+                                    player.stop()
+                                    selected = null
+                                    profiles = freshProfiles
+                                    activeProfileId = target.id
+                                    playlistUrl = target.address
+                                    channels = freshChannels
+                                    status = "Canales actualizados · ${freshChannels.size} disponibles"
+                                } catch (e: Exception) {
+                                    status = "No se pudieron actualizar los canales: ${e.message ?: "revisá internet"}"
+                                } finally { loading = false }
+                            }
+                        }, enabled = !loading && customerUsername.isNotBlank() && customerPassword.isNotBlank(),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                        ) { Text(if (loading) "ACTUALIZANDO…" else "↻ ACTUALIZAR CANALES", fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+                    }
                 }
                 Spacer(Modifier.height(16.dp))
 
@@ -763,7 +760,7 @@ fun MiIptvApp() {
             Icon(Icons.Default.PlayCircle, null, tint = Cyan, modifier = Modifier.size(27.dp).clickable { onClick() })
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f).clickable { onClick() }) {
-                Text(channel.name, color = White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                Text(channel.name, color = White, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                 Text(channel.group, color = Muted, fontSize = 10.sp)
             }
             IconButton(onClick = onFavorite) {
