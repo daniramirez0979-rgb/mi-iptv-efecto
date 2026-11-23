@@ -96,7 +96,7 @@ jobs:
           from pathlib import Path
           p = Path("app/build.gradle.kts")
           s = p.read_text()
-          s, n = re.subn(r'versionCode\\s*=\\s*\\d+', 'versionCode = ' + os.environ["GITHUB_RUN_NUMBER"], s, count=1)
+          s, n = re.subn(r'versionCode\s*=\s*\d+', 'versionCode = ' + os.environ["GITHUB_RUN_NUMBER"], s, count=1)
           if n != 1:
               raise SystemExit("No se pudo actualizar versionCode")
           p.write_text(s)
