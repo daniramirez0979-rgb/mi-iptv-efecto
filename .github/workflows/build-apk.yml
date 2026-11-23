@@ -18,11 +18,10 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Preparar Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Instalar SDK requerido
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - name: Instalar Android SDK
+        run: |
+          yes | sdkmanager --licenses
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
       - name: Descomprimir proyecto
         run: unzip -oq MiIPTV_Efecto_Compilacion_Automatica.zip -d .
