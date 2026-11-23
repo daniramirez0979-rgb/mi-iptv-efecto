@@ -463,18 +463,19 @@ fun MiIptvApp() {
                     }
                     if (!isFullscreen) {
                         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            val argentinaPlayerChannels = channels.filter { isArgentineChannel(it) }
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                                TextButton(onClick = { isFullscreen = false; player.stop(); selected = null }, modifier = Modifier.weight(1f),
+                                TextButton(onClick = { isFullscreen = false; player.stop(); selected = null; playingMovie = false }, modifier = Modifier.weight(1f),
                                     contentPadding = PaddingValues(horizontal = 2.dp, vertical = 6.dp)) { Text("← CANALES", fontSize = 12.sp, maxLines = 1) }
                                 TextButton(onClick = {
-                                    val index = channels.indexOfFirst { it.url == selected?.url }
-                                    if (index > 0) selected = channels[index - 1]
-                                }, enabled = channels.indexOfFirst { it.url == selected?.url } > 0, modifier = Modifier.weight(1f),
+                                    val index = argentinaPlayerChannels.indexOfFirst { it.url == selected?.url }
+                                    if (index > 0) selected = argentinaPlayerChannels[index - 1]
+                                }, enabled = argentinaPlayerChannels.indexOfFirst { it.url == selected?.url } > 0, modifier = Modifier.weight(1f),
                                     contentPadding = PaddingValues(horizontal = 2.dp, vertical = 6.dp)) { Text("ANTERIOR", fontSize = 12.sp, maxLines = 1) }
                                 TextButton(onClick = {
-                                    val index = channels.indexOfFirst { it.url == selected?.url }
-                                    if (index >= 0 && index < channels.lastIndex) selected = channels[index + 1]
-                                }, enabled = channels.indexOfFirst { it.url == selected?.url } in 0 until channels.lastIndex, modifier = Modifier.weight(1f),
+                                    val index = argentinaPlayerChannels.indexOfFirst { it.url == selected?.url }
+                                    if (index >= 0 && index < argentinaPlayerChannels.lastIndex) selected = argentinaPlayerChannels[index + 1]
+                                }, enabled = argentinaPlayerChannels.indexOfFirst { it.url == selected?.url } in 0 until argentinaPlayerChannels.lastIndex, modifier = Modifier.weight(1f),
                                     contentPadding = PaddingValues(horizontal = 2.dp, vertical = 6.dp)) { Text("SIGUIENTE", fontSize = 12.sp, maxLines = 1) }
                             }
                             if (playingMovie) {
@@ -612,7 +613,7 @@ fun MiIptvApp() {
                             else LazyColumn(verticalArrangement = Arrangement.spacedBy(7.dp)) {
                                 items(filtered) { channel ->
                                     ChannelRow(channel, favorites.contains(channel.url),
-                                        onClick = { selected = channel },
+                                        onClick = { playingMovie = false; selected = channel },
                                         onFavorite = { favorites = if (favorites.contains(channel.url)) favorites - channel.url else favorites + channel.url })
                                 }
                             }
@@ -668,7 +669,7 @@ fun MiIptvApp() {
                             SectionHeader("FAVORITOS", "Tus canales guardados")
                             val favs = channels.filter { favorites.contains(it.url) }
                             if (favs.isEmpty()) EmptyState("Aún no tenés favoritos", "Tocá la estrella de un canal para guardarlo.")
-                            else LazyColumn { items(favs) { ChannelRow(it, true, { selected = it }, { favorites = favorites - it.url }) } }
+                            else LazyColumn { items(favs.filter { isArgentineChannel(it) }) { ChannelRow(it, true, { playingMovie = false; selected = it }, { favorites = favorites - it.url }) } }
                         }
                         Section.SETTINGS -> SettingsScreen(
                             playlistUrl, { playlistUrl = it }, host, { host = it }, username, { username = it },
