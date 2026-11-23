@@ -164,9 +164,10 @@ fun MiIptvApp() {
             .setSeekForwardIncrementMs(10000)
             .build()
     }
-    // No cambiar orientación: evita recrear la pantalla y perder la sesión.
+    // La Activity declara configChanges para conservar sesión y reproductor al girar.
     LaunchedEffect(isFullscreen) {
         val activity = context as? android.app.Activity
+        activity?.requestedOrientation = if (isFullscreen) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         activity?.window?.decorView?.systemUiVisibility = if (isFullscreen) (
             View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
             View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
@@ -372,7 +373,7 @@ fun MiIptvApp() {
                             resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                             setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
                         }
-                    }, modifier = Modifier.fillMaxWidth().weight(if (!isFullscreen && channels.isNotEmpty()) 0.58f else 1f))
+                    }, modifier = Modifier.fillMaxWidth().weight(if (!isFullscreen && channels.isNotEmpty()) 0.68f else 1f))
                     LaunchedEffect(selected) {
                         selected?.let { channel ->
                             val uri = Uri.parse(channel.url)
@@ -413,7 +414,7 @@ fun MiIptvApp() {
                     }
                     if (!isFullscreen && channels.isNotEmpty()) {
                         Text("CANALES DISPONIBLES  •  ${channels.size}", color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        LazyColumn(Modifier.fillMaxWidth().weight(0.42f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        LazyColumn(Modifier.fillMaxWidth().weight(0.32f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             items(channels) { channel ->
                                 ChannelRow(channel, favorites.contains(channel.url),
                                     onClick = { selected = channel },
