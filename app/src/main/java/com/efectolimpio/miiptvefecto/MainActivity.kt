@@ -570,7 +570,9 @@ fun MiIptvApp() {
                                 items(movies) { item ->
                                     CatalogRow(item.name, item.category) {
                                         val ext = item.extension.ifBlank { "mp4" }
-                                        selected = Channel(item.name, "$host/movie/${Uri.encode(username)}/${Uri.encode(password)}/${item.id}.$ext", item.category)
+                                        val access = providerAccess(playlistUrl)
+                                        if (access == null) status = "No se pudo leer el acceso de la lista principal."
+                                        else selected = Channel(item.name, access.movieUrl(item.id, ext), item.category)
                                     }
                                 }
                             }
@@ -585,9 +587,9 @@ fun MiIptvApp() {
                                         scope.launch {
                                             loading = true
                                             try {
-                                                val api = "$host/player_api.php?username=${Uri.encode(username)}&password=${Uri.encode(password)}&action=get_series_info&series_id=${Uri.encode(item.id)}"
-                                                val json = withContext(Dispatchers.IO) { downloadText(api) }
-                                                episodes = parseSeriesEpisodes(json, host, username, password)
+                                                val access = providerAccess(playlistUrl) ?: error("No se pudo leer el acceso de la lista principal.")
+                                                val json = withContext(Dispatchers.IO) { downloadText(access.seriesInfoUrl(item.id)) }
+                                                episodes = parseSeriesEpisodes(json, access.host, access.username, access.password)
                                                 status = if (episodes.isEmpty()) "No se encontraron episodios para esta serie." else "Episodios cargados: ${episodes.size}"
                                             } catch (e: Exception) { status = "No se pudieron cargar episodios: ${e.message ?: "error"}" }
                                             loading = false
@@ -1104,20 +1106,43 @@ private fun parseXtream(json: String, base: String, user: String, pass: String):
 }
 
 
+private data class ProviderAccess(val host: String, val username: String, val password: String) {
+    fun movieUrl(id: String, ext: String) = "$host/movie/${Uri.encode(username)}/${Uri.encode(password)}/$id.$ext"
+    fun seriesInfoUrl(id: String) = "$host/player_api.php?username=${Uri.encode(username)}&password=${Uri.encode(password)}&action=get_series_info&series_id=${Uri.encode(id)}"
+}
+private fun providerAccess(address: String): ProviderAccess? {
+    return try {
+        val uri = Uri.parse(address)
+        val scheme = uri.scheme ?: return null
+        val authority = uri.encodedAuthority ?: return null
+        val user = uri.getQueryParameter("username") ?: return null
+        val pass = uri.getQueryParameter("password") ?: return null
+        if (user.isBlank() || pass.isBlank()) return null
+        ProviderAccess("$scheme://$authority", user, pass)
+    } catch (_: Exception) { null }
+}
+
 private fun parseCatalog(json: String): List<CatalogItem> {
-    val array = org.json.JSONArray(json)
+    val root = org.json.JSONTokener(json).nextValue()
+    val array = when (root) {
+        is org.json.JSONArray -> root
+        is org.json.JSONObject -> root.optJSONArray("data") ?: root.optJSONArray("items")
+            ?: root.optJSONArray("results") ?: root.optJSONArray("streams")
+            ?: root.optJSONArray("series") ?: org.json.JSONArray()
+        else -> org.json.JSONArray()
+    }
     val result = mutableListOf<CatalogItem>()
+    val seen = mutableSetOf<String>()
     for (i in 0 until array.length()) {
         val item = array.optJSONObject(i) ?: continue
-        val id = item.optString("stream_id", item.optString("series_id"))
-        if (id.isBlank()) continue
-        result += CatalogItem(
-            id = id,
-            name = item.optString("name", "Contenido $id"),
-            category = item.optString("category_name", "Sin categoría"),
-            image = item.optString("stream_icon", item.optString("cover", "")),
-            extension = item.optString("container_extension", "mp4").ifBlank { "mp4" }
-        )
+        val id = item.optString("stream_id").ifBlank { item.optString("series_id") }
+            .ifBlank { item.optString("vod_id") }.ifBlank { item.optString("id") }
+        if (id.isBlank() || !seen.add(id)) continue
+        val name = item.optString("name").ifBlank { item.optString("title") }.ifBlank { "Contenido $id" }
+        val category = item.optString("category_name").ifBlank { item.optString("category") }.ifBlank { "Sin categoría" }
+        val image = item.optString("stream_icon").ifBlank { item.optString("cover") }.ifBlank { item.optString("cover_big") }
+        val extension = item.optString("container_extension").ifBlank { "mp4" }
+        result += CatalogItem(id, name, category, image, extension)
     }
     return result
 }
