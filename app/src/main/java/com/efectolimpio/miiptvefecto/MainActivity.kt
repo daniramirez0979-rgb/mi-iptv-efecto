@@ -83,15 +83,10 @@ private fun isArgentineChannel(channel: Channel): Boolean {
     return known.any { normalized.contains(it) }
 }
 
-// La lista del proveedor está ordenada por países: tomar todos los canales
-// desde la primera categoría/grupo que contiene "Argentina" hacia abajo.
-private fun argentineChannelsInPlaylistOrder(source: List<Channel>): List<Channel> {
-    val start = source.indexOfFirst {
-        val marker = (it.group + " " + it.name).uppercase()
-        marker.contains("ARGENTINA") || marker.contains("🇦🇷")
-    }
-    return if (start >= 0) source.drop(start) else source.filter { isArgentineChannel(it) }
-}
+// Mostrar únicamente canales argentinos. No usar drop(start): eso también
+// incorporaba canales de otros países ubicados después del bloque Argentina.
+private fun argentineChannelsInPlaylistOrder(source: List<Channel>): List<Channel> =
+    source.filter { isArgentineChannel(it) }
 
 
 class MainActivity : ComponentActivity() {
