@@ -124,7 +124,7 @@ fun MiIptvApp() {
                 val o = array.optJSONObject(i) ?: return@mapNotNull null
                 PlaylistProfile(o.optString("id"), o.optString("name"), o.optString("type"),
                     o.optString("address"), o.optString("username"), o.optString("password"))
-            }
+            }.take(1)
         } catch (_: Exception) { emptyList() }
         activeProfileId = securePrefs.getString("active_profile", "") ?: ""
         autoBackup = securePrefs.getBoolean("auto_backup", true)
@@ -859,36 +859,6 @@ fun MiIptvApp() {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = onLoadUrl, enabled = !loading, modifier = Modifier.weight(1f)) { Text("Cargar enlace") }
                         OutlinedButton(onClick = onPickFile) { Text("Abrir archivo") }
-                    }
-                }
-            }
-        }
-        item {
-            var profileName by remember { mutableStateOf("") }
-            Card(colors = CardDefaults.cardColors(containerColor = Panel)) {
-                Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("LISTAS DE RESPALDO", color = Cyan, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    Text("Guardá varias fuentes. Si un canal falla, la app probará encontrarlo en otra lista.", color = Muted, fontSize = 10.sp)
-                    OutlinedTextField(profileName, { profileName = it }, label = { Text("Nombre de esta lista") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                    Button(onClick = { onSaveProfile(profileName); profileName = "" }, enabled = !loading, modifier = Modifier.fillMaxWidth()) { Text("Guardar lista actual como respaldo") }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text("Cambio automático", color = White, fontWeight = FontWeight.SemiBold)
-                            Text("Buscar el mismo canal en otra lista si falla", color = Muted, fontSize = 10.sp)
-                        }
-                        Switch(checked = autoBackup, onCheckedChange = onAutoBackup)
-                    }
-                    if (profiles.isEmpty()) Text("Todavía no guardaste listas de respaldo.", color = Muted, fontSize = 11.sp)
-                    profiles.forEach { profile ->
-                        Row(Modifier.fillMaxWidth().background(Panel2, RoundedCornerShape(10.dp)).padding(9.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                Text(profile.name, color = White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                Text("Lista M3U/M3U8", color = Muted, fontSize = 10.sp)
-                                if (profile.id == activeProfileId) Text("ACTIVA", color = Cyan, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                            }
-                            TextButton(onClick = { onActivateProfile(profile) }, enabled = !loading) { Text("Usar") }
-                            IconButton(onClick = { onRemoveProfile(profile) }) { Icon(Icons.Default.Delete, null, tint = Muted) }
-                        }
                     }
                 }
             }
