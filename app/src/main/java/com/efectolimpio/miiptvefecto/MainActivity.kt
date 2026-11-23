@@ -281,7 +281,7 @@ fun MiIptvApp() {
 
             // Navigation rail works well on wide Android TV screens and tablets.
             if (!isFullscreen) Column(
-                Modifier.width(58.dp).fillMaxHeight().background(Color(0xFF06131F)).padding(vertical = 10.dp),
+                Modifier.width(72.dp).fillMaxHeight().background(Color(0xFF06131F)).padding(vertical = 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
@@ -293,12 +293,12 @@ fun MiIptvApp() {
                         Modifier.fillMaxWidth().padding(horizontal = 7.dp)
                             .background(if (active) Panel2 else Color.Transparent, RoundedCornerShape(13.dp))
                             .clickable { section = item; selected = null }
-                            .padding(vertical = 11.dp),
+                            .padding(vertical = 13.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Icon(sectionIcon(item), null, tint = if (active) Cyan else Muted, modifier = Modifier.size(22.dp))
-                        Spacer(Modifier.height(4.dp))
-                        Text(item.label.substringBefore(" "), color = if (active) White else Muted, fontSize = 10.sp, fontWeight = if (active) FontWeight.Bold else FontWeight.Normal)
+                        Icon(sectionIcon(item), null, tint = if (active) Cyan else Muted, modifier = Modifier.size(27.dp))
+                        Spacer(Modifier.height(5.dp))
+                        Text(item.label.substringBefore(" "), color = if (active) White else Muted, fontSize = 12.sp, fontWeight = if (active) FontWeight.Bold else FontWeight.Normal)
                     }
                 }
                 Spacer(Modifier.weight(1f))
@@ -353,19 +353,6 @@ fun MiIptvApp() {
                         Spacer(Modifier.height(8.dp))
                     }
                     val activePlayer = player
-                    if (!isFullscreen) {
-                        Button(
-                            onClick = { isFullscreen = true },
-                            modifier = Modifier.fillMaxWidth().height(52.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Cyan, contentColor = Navy)
-                        ) {
-                            Icon(Icons.Default.Fullscreen, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text("VER EN PANTALLA COMPLETA", fontWeight = FontWeight.ExtraBold)
-                        }
-                        Spacer(Modifier.height(8.dp))
-                    }
                     AndroidView(factory = { ctx ->
                         PlayerView(ctx).apply {
                             this.player = activePlayer
@@ -406,10 +393,13 @@ fun MiIptvApp() {
                                 player.setMediaItem(item); player.prepare(); player.playWhenReady = true
                             }
                         }) { Text("REINTENTAR") }
-                        TextButton(onClick = { isFullscreen = !isFullscreen }) {
-                            Icon(if (isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen, null)
-                            Spacer(Modifier.width(6.dp))
-                            Text(if (isFullscreen) "Salir" else "Pantalla completa")
+                        IconButton(onClick = { isFullscreen = !isFullscreen }) {
+                            Icon(
+                                if (isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
+                                contentDescription = if (isFullscreen) "Salir de pantalla completa" else "Pantalla completa",
+                                tint = Cyan,
+                                modifier = Modifier.size(30.dp)
+                            )
                         }
                     }
                     if (!isFullscreen && channels.isNotEmpty()) {
@@ -757,12 +747,12 @@ fun MiIptvApp() {
 
 @Composable private fun ChannelRow(channel: Channel, favorite: Boolean, onClick: () -> Unit, onFavorite: () -> Unit) {
     Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(12.dp)) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.PlayCircle, null, tint = Cyan, modifier = Modifier.size(27.dp).clickable { onClick() })
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.PlayCircle, null, tint = Cyan, modifier = Modifier.size(32.dp).clickable { onClick() })
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f).clickable { onClick() }) {
-                Text(channel.name, color = White, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-                Text(channel.group, color = Muted, fontSize = 10.sp)
+                Text(channel.name, color = White, fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
+                Text(channel.group, color = Muted, fontSize = 12.sp)
             }
             IconButton(onClick = onFavorite) {
                 Icon(if (favorite) Icons.Default.Star else Icons.Default.StarBorder, null, tint = if (favorite) Cyan else Muted)
