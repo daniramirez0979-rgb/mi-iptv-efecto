@@ -8,6 +8,7 @@ import android.os.Bundle
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -381,6 +382,25 @@ fun MiIptvApp() {
         primary = Cyan, background = Navy, surface = Panel, onPrimary = Navy,
         onBackground = White, onSurface = White, secondary = Cyan
     )) {
+
+        BackHandler(enabled = authenticated && (updateDialog != null || showSubtitleDialog || isFullscreen || selected != null || selectedSeries != null || episodes.isNotEmpty() || section != Section.HOME)) {
+            when {
+                updateDialog != null -> updateDialog = null
+                showSubtitleDialog -> showSubtitleDialog = false
+                isFullscreen -> isFullscreen = false
+                selected != null -> {
+                    player.stop()
+                    selected = null
+                    playingMovie = false
+                    showSubtitleDialog = false
+                }
+                selectedSeries != null || episodes.isNotEmpty() -> {
+                    selectedSeries = null
+                    episodes = emptyList()
+                }
+                section != Section.HOME -> section = Section.HOME
+            }
+        }
 
         if (updateDialog != null) {
             AlertDialog(
