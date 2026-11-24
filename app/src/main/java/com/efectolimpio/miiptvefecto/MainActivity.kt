@@ -435,6 +435,7 @@ fun MiIptvApp() {
                         Modifier.fillMaxWidth().padding(horizontal = 7.dp)
                             .background(if (active) Panel2 else Color.Transparent, RoundedCornerShape(13.dp))
                             .clickable { section = item; selected = null; playingMovie = false }
+                            .focusable()
                             .padding(vertical = 13.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
@@ -619,7 +620,7 @@ fun MiIptvApp() {
                             val argentinaOnly = argentineChannels
                             Text("CANALES ARGENTINOS  •  ${argentinaOnly.size}", color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             LazyColumn(Modifier.fillMaxWidth().weight(0.32f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                items(argentinaOnly) { channel ->
+                                items(argentinaOnly, key = { it.url }) { channel ->
                                     ChannelRow(channel, favorites.contains(channel.url),
                                         onClick = { playingMovie = false; selected = channel },
                                         onFavorite = { favorites = if (favorites.contains(channel.url)) favorites - channel.url else favorites + channel.url })
@@ -940,7 +941,7 @@ fun MiIptvApp() {
 }
 
 @Composable private fun HomeTile(title: String, subtitle: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier, onClick: () -> Unit) {
-    Card(modifier.clickable(onClick = onClick), colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(15.dp)) {
+    Card(modifier.clickable(onClick = onClick).focusable(), colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(15.dp)) {
         Column(Modifier.fillMaxWidth().padding(14.dp)) {
             Icon(icon, null, tint = Cyan, modifier = Modifier.size(27.dp))
             Spacer(Modifier.height(12.dp))
