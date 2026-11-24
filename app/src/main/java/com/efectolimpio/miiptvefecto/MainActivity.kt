@@ -244,7 +244,7 @@ fun MiIptvApp() {
     }
     val player = remember {
         val loadControl = androidx.media3.exoplayer.DefaultLoadControl.Builder()
-            .setBufferDurationsMs(5000, 15000, 500, 1500)
+            .setBufferDurationsMs(15000, 60000, 2500, 6000)
             .build()
         ExoPlayer.Builder(context)
             .setLoadControl(loadControl)
