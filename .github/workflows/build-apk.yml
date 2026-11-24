@@ -144,7 +144,7 @@ jobs:
           }
           '''
           if "getByName(\"debug\")" not in s:
-              s += "\\n" + block
+              s += "\n" + block
               p.write_text(s)
           print("Gradle configurado para firmar explícitamente con la clave permanente.")
           PY
