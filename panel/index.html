@@ -63,10 +63,19 @@ async function loadUsers(){
   $("users").innerHTML=items.length?items.map(u=>{
    const active=u.active&&new Date(u.expires_at)>new Date();
    const device=u.device_id?('Dispositivo: '+esc(u.device_label||u.device_id)+(u.device_registered_at?' · '+new Date(u.device_registered_at).toLocaleString("es-AR"):"")):"Sin dispositivo vinculado";
-   return '<div class="user"><div><b>'+esc(u.username)+'</b><div class="muted">Vence: '+new Date(u.expires_at).toLocaleDateString("es-AR")+'</div><div class="muted">'+device+'</div><span class="status '+(active?"":"off")+'">'+(active?"ACTIVO":(u.active?"VENCIDO":"BAJA"))+'</span></div><div class="actions">'+'<button onclick="releaseDevice(\''+u.id+'\')">Liberar dispositivo</button>'+'<button class="'+(u.active?"danger":"")+'" onclick="toggleUser(\''+u.id+'\','+(!u.active)+')">'+(u.active?"Dar de baja":"Reactivar")+'</button><button class="danger" onclick="deleteUser(\''+u.id+'\')">Eliminar</button></div></div>';
+   return '<div class="user"><div><b>'+esc(u.username)+'</b><div class="muted">Vence: '+new Date(u.expires_at).toLocaleDateString("es-AR")+'</div><div class="muted">'+device+'</div><span class="status '+(active?"":"off")+'">'+(active?"ACTIVO":(u.active?"VENCIDO":"BAJA"))+'</span></div><div class="actions">'+'<button onclick="renewUser(\''+u.id+'\',\''+esc(u.username)+'\')">Renovar días</button>'+ '<button onclick="releaseDevice(\''+u.id+'\')">Liberar dispositivo</button>'+'<button class="'+(u.active?"danger":"")+'" onclick="toggleUser(\''+u.id+'\','+(!u.active)+')">'+(u.active?"Dar de baja":"Reactivar")+'</button><button class="danger" onclick="deleteUser(\''+u.id+'\')">Eliminar</button></div></div>';
   }).join(""):'<div class="empty">Todavía no hay usuarios.</div>';
  }catch(e){$("users").innerHTML='<div class="empty">Error al cargar: '+esc(e.message)+'</div>'}
 }
+window.renewUser=async(id,username)=>{
+ const answer=prompt("¿Cuántos días querés agregar a "+username+"? (1 a 3650)");
+ if(answer===null)return;
+ const days=Number(answer);
+ if(!Number.isInteger(days)||days<1||days>3650){alert("Ingresá una cantidad válida entre 1 y 3650 días.");return}
+ if(!confirm("Se agregarán "+days+" días a la fecha de vencimiento de "+username+". ¿Confirmás?"))return;
+ try{const r=await call("renew",{id,days});await loadUsers();alert("Renovación realizada. Nuevo vencimiento: "+new Date(r.expires_at).toLocaleDateString("es-AR"))}
+ catch(e){alert("No se pudo renovar: "+e.message)}
+};
 window.releaseDevice=async id=>{if(!confirm("¿Liberar el dispositivo de este usuario? La cuenta seguirá activa y no se eliminará."))return;try{await call("release_device",{id});await loadUsers();alert("Dispositivo liberado correctamente.")}catch(e){alert("No se pudo liberar: "+e.message)}};
 window.toggleUser=async(id,active)=>{try{await call("status",{id,active});loadUsers()}catch(e){alert(e.message)}};
 window.deleteUser=async id=>{if(!confirm("¿Eliminar definitivamente este usuario?"))return;try{await call("delete",{id});loadUsers()}catch(e){alert(e.message)}};
