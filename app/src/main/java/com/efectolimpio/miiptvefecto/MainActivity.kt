@@ -14,6 +14,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -698,7 +699,7 @@ fun MiIptvApp() {
                                     }
                                 }
                             } else LazyColumn(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                                items(movies) { item ->
+                                items(movies, key = { it.id }) { item ->
                                     CatalogRow(item.name, item.category) {
                                         val ext = item.extension.ifBlank { "mp4" }
                                         val access = providerAccess(playlistUrl)
@@ -713,7 +714,7 @@ fun MiIptvApp() {
                             if (selectedSeries == null) {
                                 if (series.isEmpty()) EmptyState("Catálogo no disponible", "Tu lista M3U/M3U8 carga canales de TV en vivo.")
                                 else LazyColumn(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                                    items(series) { item -> CatalogRow(item.name, item.category) {
+                                    items(series, key = { it.id }) { item -> CatalogRow(item.name, item.category) {
                                         selectedSeries = item
                                         scope.launch {
                                             loading = true
@@ -731,7 +732,7 @@ fun MiIptvApp() {
                                 TextButton(onClick = { selectedSeries = null; episodes = emptyList() }) { Text("← Volver a series") }
                                 if (episodes.isEmpty()) EmptyState("Sin episodios disponibles", status)
                                 else LazyColumn(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                                    items(episodes) { ep -> CatalogRow(ep.name, ep.group) { playingMovie = false; selected = ep } }
+                                    items(episodes, key = { it.url }) { ep -> CatalogRow(ep.name, ep.group) { playingMovie = false; selected = ep } }
                                 }
                             }
                         }
@@ -739,7 +740,7 @@ fun MiIptvApp() {
                             SectionHeader("FAVORITOS", "Tus canales guardados")
                             val favs = channels.filter { favorites.contains(it.url) }
                             if (favs.isEmpty()) EmptyState("Aún no tenés favoritos", "Tocá la estrella de un canal para guardarlo.")
-                            else LazyColumn { items(argentineChannelsInPlaylistOrder(favs)) { ChannelRow(it, true, { playingMovie = false; selected = it }, { favorites = favorites - it.url }) } }
+                            else LazyColumn { items(argentineChannelsInPlaylistOrder(favs), key = { it.url }) { ChannelRow(it, true, { playingMovie = false; selected = it }, { favorites = favorites - it.url }) } }
                         }
                         Section.SETTINGS -> SettingsScreen(
                             playlistUrl, { playlistUrl = it }, host, { host = it }, username, { username = it },
@@ -974,13 +975,17 @@ fun MiIptvApp() {
 }
 
 @Composable private fun ChannelRow(channel: Channel, favorite: Boolean, onClick: () -> Unit, onFavorite: () -> Unit) {
-    Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(12.dp)) {
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).focusable(),
+        colors = CardDefaults.cardColors(containerColor = Panel),
+        shape = RoundedCornerShape(12.dp)
+    ) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.PlayCircle, null, tint = Cyan, modifier = Modifier.size(32.dp).clickable { onClick() })
+            Icon(Icons.Default.PlayCircle, null, tint = Cyan, modifier = Modifier.size(32.dp))
             Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f).clickable { onClick() }) {
-                Text(channel.name, color = White, fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
-                Text(channel.group, color = Muted, fontSize = 12.sp)
+            Column(Modifier.weight(1f)) {
+                Text(channel.name, color = White, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, maxLines = 1)
+                Text(channel.group, color = Muted, fontSize = 12.sp, maxLines = 1)
             }
             IconButton(onClick = onFavorite) {
                 Icon(if (favorite) Icons.Default.Star else Icons.Default.StarBorder, null, tint = if (favorite) Cyan else Muted)
@@ -990,7 +995,7 @@ fun MiIptvApp() {
 }
 
 @Composable private fun CatalogRow(title: String, subtitle: String, onClick: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).focusable(),
         colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(12.dp)) {
         Row(Modifier.padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Default.PlayCircle, null, tint = Cyan, modifier = Modifier.size(27.dp))
