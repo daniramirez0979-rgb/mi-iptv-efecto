@@ -131,6 +131,19 @@ fun MiIptvApp() {
     var loading by remember { mutableStateOf(false) }
     var showXtream by remember { mutableStateOf(false) }
     var search by remember { mutableStateOf("") }
+    // Preparar los canales argentinos y sus textos de búsqueda una sola vez por lista.
+    // Así, al escribir cada letra no se vuelven a ejecutar normalizaciones y regex sobre toda la lista.
+    val argentineChannels = remember(channels) { argentineChannelsInPlaylistOrder(channels) }
+    val searchableChannels = remember(argentineChannels) {
+        argentineChannels.map { channel ->
+            channel to (channel.name.lowercase() + " " + channel.group.lowercase())
+        }
+    }
+    val filteredChannels = remember(searchableChannels, search) {
+        val query = search.trim().lowercase()
+        if (query.isBlank()) searchableChannels.map { it.first }
+        else searchableChannels.filter { it.second.contains(query) }.map { it.first }
+    }
     var favorites by remember { mutableStateOf(setOf<String>()) }
     var movies by remember { mutableStateOf(emptyList<CatalogItem>()) }
     var moviesLoaded by remember { mutableStateOf(false) }
@@ -501,7 +514,7 @@ fun MiIptvApp() {
                     }
                     if (!isFullscreen) {
                         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            val argentinaPlayerChannels = argentineChannelsInPlaylistOrder(channels)
+                            val argentinaPlayerChannels = argentineChannels
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                                 TextButton(onClick = { isFullscreen = false; player.stop(); selected = null; playingMovie = false }, modifier = Modifier.weight(1f),
                                     contentPadding = PaddingValues(horizontal = 2.dp, vertical = 6.dp)) { Text("← CANALES", fontSize = 12.sp, maxLines = 1) }
@@ -582,7 +595,7 @@ fun MiIptvApp() {
                             }
                         }
                         if (!isFullscreen && channels.isNotEmpty()) {
-                            val argentinaOnly = argentineChannelsInPlaylistOrder(channels)
+                            val argentinaOnly = argentineChannels
                             Text("CANALES ARGENTINOS  •  ${argentinaOnly.size}", color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             LazyColumn(Modifier.fillMaxWidth().weight(0.32f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 items(argentinaOnly) { channel ->
@@ -646,10 +659,9 @@ fun MiIptvApp() {
                             OutlinedTextField(search, { search = it }, modifier = Modifier.fillMaxWidth(),
                                 label = { Text("Buscar canal") }, singleLine = true)
                             Spacer(Modifier.height(8.dp))
-                            val filtered = argentineChannelsInPlaylistOrder(channels).filter { search.isBlank() || it.name.contains(search, true) || it.group.contains(search, true) }
-                            if (filtered.isEmpty()) EmptyState("Todavía no hay canales", "Cargá una lista desde Configuración para comenzar.")
+                            if (filteredChannels.isEmpty()) EmptyState("Todavía no hay canales", "Cargá una lista desde Configuración para comenzar.")
                             else LazyColumn(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                                items(filtered) { channel ->
+                                items(filteredChannels, key = { it.url }) { channel ->
                                     ChannelRow(channel, favorites.contains(channel.url),
                                         onClick = { playingMovie = false; selected = channel },
                                         onFavorite = { favorites = if (favorites.contains(channel.url)) favorites - channel.url else favorites + channel.url })
