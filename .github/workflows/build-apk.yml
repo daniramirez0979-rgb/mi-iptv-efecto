@@ -130,16 +130,16 @@ jobs:
         run: |
           APK_PATH="$(find . -type f -path "*/app/build/outputs/apk/debug/app-debug.apk" | head -n 1)"
           test -n "$APK_PATH"
-          cp "$APK_PATH" Efecto-TV-Ultima.apk
-          test -s Efecto-TV-Ultima.apk
+          cp "$APK_PATH" Efecto-TV-2.0.apk
+          test -s Efecto-TV-2.0.apk
 
       - name: Verificar identidad de la nueva aplicación
         id: compatibility
         run: |
           set -e
           BUILD_TOOLS="$ANDROID_HOME/build-tools/35.0.0"
-          NEW_PACKAGE="$("$BUILD_TOOLS/aapt" dump badging Efecto-TV-Ultima.apk | sed -n "s/^package: name='\\([^']*\\)'.*/\\1/p" | head -n1)"
-          NEW_CERT="$("$BUILD_TOOLS/apksigner" verify --print-certs Efecto-TV-Ultima.apk | sed -n 's/.*certificate SHA-256 digest: //p' | head -n1)"
+          NEW_PACKAGE="$("$BUILD_TOOLS/aapt" dump badging Efecto-TV-2.0.apk | sed -n "s/^package: name='\\([^']*\\)'.*/\\1/p" | head -n1)"
+          NEW_CERT="$("$BUILD_TOOLS/apksigner" verify --print-certs Efecto-TV-2.0.apk | sed -n 's/.*certificate SHA-256 digest: //p' | head -n1)"
           echo "Paquete de la nueva app: $NEW_PACKAGE"
           echo "Certificado SHA-256: $NEW_CERT"
           if [ "$NEW_PACKAGE" = "com.efectolimpio.miiptvefecto.nueva3" ] && [ "$NEW_CERT" = "0666586e980b0ad045851ab77c2527aadeaed55d9aa8ee4bf2e9fbf123d08c67" ]; then
@@ -154,15 +154,15 @@ jobs:
       - name: Guardar APK
         uses: actions/upload-artifact@v4
         with:
-          name: Efecto-TV-Ultima
-          path: Efecto-TV-Ultima.apk
+          name: Efecto-TV-2.0
+          path: Efecto-TV-2.0.apk
           if-no-files-found: error
 
       - name: Publicar nueva instalación estable de Efecto TV
         if: env.SIGNING_READY == 'true' && env.UPDATE_COMPATIBLE == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: tv-${{ github.run_number }}
-          name: EFECTO TV ${{ github.run_number }}
-          files: Efecto-TV-Ultima.apk
+          tag_name: efecto-tv-2.0
+          name: EFECTO TV 2.0
+          files: Efecto-TV-2.0.apk
           make_latest: true
