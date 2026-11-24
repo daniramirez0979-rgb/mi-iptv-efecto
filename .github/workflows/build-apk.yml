@@ -142,7 +142,7 @@ jobs:
           NEW_CERT="$("$BUILD_TOOLS/apksigner" verify --print-certs Efecto-TV-2.0.apk | sed -n 's/.*certificate SHA-256 digest: //p' | head -n1)"
           echo "Paquete de la nueva app: $NEW_PACKAGE"
           echo "Certificado SHA-256: $NEW_CERT"
-          if [ "$NEW_PACKAGE" = "com.efectolimpio.miiptvefecto.nueva3" ] && [ "$NEW_CERT" = "0666586e980b0ad045851ab77c2527aadeaed55d9aa8ee4bf2e9fbf123d08c67" ]; then
+          if [ "$NEW_PACKAGE" = "com.efectolimpio.miiptvefecto.nueva3" ] && [ "$NEW_CERT" = "2086a4cb3aa86a11fa1ffe1f0db9d785f4866562a2a98bb17861779c13aa6ddf" ]; then
             echo "UPDATE_COMPATIBLE=true" >> "$GITHUB_ENV"
             echo "Identidad nueva verificada."
           else
