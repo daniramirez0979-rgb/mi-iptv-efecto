@@ -119,6 +119,36 @@ jobs:
           print("Versión de APK:", os.environ["GITHUB_RUN_NUMBER"])
           PY
 
+      - name: Configurar firma permanente en Gradle
+        if: env.SIGNING_READY == 'true'
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/build.gradle.kts")
+          s = p.read_text()
+          block = '''
+          android {
+              signingConfigs {
+                  getByName("debug") {
+                      storeFile = file(System.getProperty("user.home") + "/.android/debug.keystore")
+                      storePassword = "android"
+                      keyAlias = "androiddebugkey"
+                      keyPassword = "android"
+                  }
+              }
+              buildTypes {
+                  getByName("debug") {
+                      signingConfig = signingConfigs.getByName("debug")
+                  }
+              }
+          }
+          '''
+          if "getByName(\"debug\")" not in s:
+              s += "\\n" + block
+              p.write_text(s)
+          print("Gradle configurado para firmar explícitamente con la clave permanente.")
+          PY
+
       - name: Compilar APK
         run: |
           PROJECT_DIR="$(dirname "$(find . -type f \( -name settings.gradle -o -name settings.gradle.kts \) | head -n 1)")"
