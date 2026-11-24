@@ -384,21 +384,23 @@ fun MiIptvApp() {
         onBackground = White, onSurface = White, secondary = Cyan
     )) {
 
-        BackHandler(enabled = authenticated && (updateDialog != null || showSubtitleDialog || isFullscreen || selected != null || selectedSeries != null || episodes.isNotEmpty() || section != Section.HOME)) {
+        BackHandler(enabled = authenticated && (updateDialog != null || showSubtitleDialog || selected != null || selectedSeries != null || episodes.isNotEmpty() || isFullscreen || section != Section.HOME)) {
             when {
                 updateDialog != null -> updateDialog = null
                 showSubtitleDialog -> showSubtitleDialog = false
-                isFullscreen -> isFullscreen = false
+                // Desde cualquier canal o película, Atrás vuelve a la lista para elegir otro.
                 selected != null -> {
                     player.stop()
                     selected = null
                     playingMovie = false
                     showSubtitleDialog = false
+                    isFullscreen = false
                 }
                 selectedSeries != null || episodes.isNotEmpty() -> {
                     selectedSeries = null
                     episodes = emptyList()
                 }
+                isFullscreen -> isFullscreen = false
                 section != Section.HOME -> section = Section.HOME
             }
         }
