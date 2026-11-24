@@ -139,10 +139,12 @@ jobs:
           set -e
           BUILD_TOOLS="$ANDROID_HOME/build-tools/35.0.0"
           NEW_PACKAGE="$("$BUILD_TOOLS/aapt" dump badging Efecto-TV-2.0.apk | sed -n "s/^package: name='\\([^']*\\)'.*/\\1/p" | head -n1)"
-          NEW_CERT="$("$BUILD_TOOLS/apksigner" verify --print-certs Efecto-TV-2.0.apk | sed -n 's/.*certificate SHA-256 digest: //p' | head -n1)"
+          NEW_CERT="$("$BUILD_TOOLS/apksigner" verify --print-certs Efecto-TV-2.0.apk | sed -n 's/.*certificate SHA-256 digest: //p' | head -n1 | tr 'A-F' 'a-f')"
+          KEY_CERT="$(keytool -list -v -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey | awk '/SHA256:/{print $2; exit}' | tr -d ':' | tr 'A-F' 'a-f')"
           echo "Paquete de la nueva app: $NEW_PACKAGE"
-          echo "Certificado SHA-256: $NEW_CERT"
-          if [ "$NEW_PACKAGE" = "com.efectolimpio.miiptvefecto.nueva3" ] && [ "$NEW_CERT" = "2086a4cb3aa86a11fa1ffe1f0db9d785f4866562a2a98bb17861779c13aa6ddf" ]; then
+          echo "Certificado APK SHA-256: $NEW_CERT"
+          echo "Certificado de la clave permanente SHA-256: $KEY_CERT"
+          if [ "$SIGNING_READY" = "true" ] && [ "$NEW_PACKAGE" = "com.efectolimpio.miiptvefecto.nueva3" ] && [ -n "$KEY_CERT" ] && [ "$NEW_CERT" = "$KEY_CERT" ]; then
             echo "UPDATE_COMPATIBLE=true" >> "$GITHUB_ENV"
             echo "Identidad nueva verificada."
           else
