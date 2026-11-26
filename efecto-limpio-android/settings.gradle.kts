@@ -13,4 +13,4 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = "EfectoLimpio"
-include(":app")
+include(":app", ":vendedor")
