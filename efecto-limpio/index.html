@@ -55,11 +55,49 @@ async function commissionList(){
   await commissionList();
  };
 }
+async function ordersList(){
+ document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab==='orders'));
+ view.onclick=null;
+ view.innerHTML='<h2 class="h">Ventas</h2><p class="muted">Cuando entregues el pedido y cobres al cliente, confirmalo acá. En ese momento se genera la comisión del vendedor.</p><p class="muted">Cargando…</p>';
+ const {data,error}=await db.from('orders').select('*').order('created_at',{ascending:false}).limit(200);
+ if(error){view.innerHTML='<h2 class="h">Ventas</h2><p class="muted">'+esc(error.message)+'</p>';return}
+ const rows=data||[];
+ const vendorIds=[...new Set(rows.map(x=>x.vendor_id).filter(Boolean))];
+ const customerIds=[...new Set(rows.map(x=>x.customer_id).filter(Boolean))];
+ const [pr,cr]=await Promise.all([
+  vendorIds.length?db.from('profiles').select('id,full_name').in('id',vendorIds):Promise.resolve({data:[],error:null}),
+  customerIds.length?db.from('customers').select('id,name,business_name').in('id',customerIds):Promise.resolve({data:[],error:null})
+ ]);
+ if(pr.error||cr.error){view.innerHTML='<h2 class="h">Ventas</h2><p class="muted">'+esc(pr.error?.message||cr.error?.message)+'</p>';return}
+ const vendors=new Map((pr.data||[]).map(x=>[x.id,x.full_name||'Vendedor']));
+ const customersMap=new Map((cr.data||[]).map(x=>[x.id,x.business_name||x.name]));
+ const open=rows.filter(x=>x.vendor_id&&['pending','approved','modified'].includes(x.status)).length;
+ view.innerHTML='<div class="row"><h2 class="h">Ventas</h2><button class="secondary" id="refreshorders">Actualizar</button></div><p class="muted">'+open+' pedidos de vendedores esperando entrega y cobro.</p>'+
+ (rows.length?'<div style="display:grid;gap:10px;margin-top:12px">'+rows.map(x=>{
+  const canComplete=!!x.vendor_id&&['pending','approved','modified'].includes(x.status);
+  const statusLabel=({draft:'Borrador',pending:'Pendiente',approved:'Aprobada',modified:'Modificada',rejected:'Rechazada',completed:'Completada · cobrada y entregada',cancel_requested:'Cancelación solicitada',cancelled:'Cancelada'})[x.status]||x.status;
+  return '<article style="padding:13px;border:1px solid #c7e5f5;background:#f5fbff;border-radius:13px"><div class="row" style="align-items:flex-start"><div style="min-width:0;flex:1"><b style="color:#075985">Venta N.º '+esc(x.order_number)+'</b><div class="muted">'+new Date(x.created_at).toLocaleString('es-AR')+'</div></div><b style="font-size:12px">'+esc(statusLabel)+'</b></div><div style="margin-top:8px"><b>'+esc(vendors.get(x.vendor_id)||'Venta de administración')+'</b><div class="muted">'+esc(customersMap.get(x.customer_id)||(x.customer_id?'Cliente':'Venta fuera de cliente'))+'</div></div><div class="row" style="margin-top:10px"><span>'+(x.is_wholesale?'MAYORISTA':'MINORISTA')+'</span><b style="font-size:18px">'+money(x.total)+'</b></div>'+
+  (x.status==='completed'?'<p class="muted" style="margin:8px 0 0">Cliente: '+(x.customer_paid?'Cobrado':'Revisar cobro')+' · Entrega confirmada.</p>':canComplete?'<button class="complete-order" data-id="'+esc(x.id)+'" style="width:100%;margin-top:11px">✓ Cobrado y entregado · generar comisión</button>':'')+'</article>';
+ }).join('')+'</div>':'<p class="muted">Todavía no hay ventas registradas.</p>')+'<p class="muted">Se muestran hasta 200 ventas.</p>';
+ $('refreshorders').onclick=()=>ordersList();
+ view.onclick=async e=>{
+  const b=e.target.closest('.complete-order');if(!b)return;
+  const order=rows.find(x=>x.id===b.dataset.id);if(!order)return;
+  if(!confirm('¿Confirmás que entregaste esta venta y cobraste al cliente? Al confirmar se generará la comisión del vendedor.'))return;
+  b.disabled=true;b.textContent='Confirmando…';
+  const now=new Date().toISOString();
+  const {data,error}=await db.from('orders').update({status:'completed',customer_paid:true,customer_paid_at:now,reviewed_by:currentUser.id,reviewed_at:now}).eq('id',order.id).eq('status',order.status).select('id').maybeSingle();
+  if(error||!data){alert('No se pudo completar la venta: '+(error?.message||'El pedido cambió o ya fue procesado. Actualizá la lista.'));b.disabled=false;b.textContent='✓ Cobrado y entregado · generar comisión';return}
+  alert('Venta completada. La comisión del vendedor ya fue generada y aparecerá en su aplicación como pendiente de pago.');
+  await ordersList();
+ };
+}
 async function list(tab){
  document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
  if(tab==='home')return dashboard();
  if(tab==='vendors')return vendors();
  if(tab==='vendor_commissions')return commissionList();
+ if(tab==='orders')return ordersList();
  view.onclick=null;
  view.innerHTML='<h2 class="h">'+titles[tab]+'</h2><p class="muted">Cargando información…</p>';
  let query=db.from(tab).select('*').limit(100);
