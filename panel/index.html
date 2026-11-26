@@ -86,4 +86,5 @@ window.toggleUser=async(id,active)=>{try{await call("status",{id,active});loadUs
 window.deleteUser=async id=>{if(!confirm("¿Eliminar definitivamente este usuario?"))return;try{await call("delete",{id});loadUsers()}catch(e){alert(e.message)}};
 $("refresh").onclick=loadUsers;
 init();
-</script></body></html>
+</script><!-- Panel TV Efecto: administración de publicidad remota -->
+</body></html>
