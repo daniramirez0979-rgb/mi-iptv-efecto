@@ -168,6 +168,7 @@ fun MiIptvApp() {
     var customerPassword by remember { mutableStateOf("") }
     var rememberCustomerLogin by remember { mutableStateOf(false) }
     var updateDialog by remember { mutableStateOf<Triple<String, String, String>?>(null) }
+    var showDailyPromo by remember { mutableStateOf(false) }
     // El catálogo VOD usa su propio estado de carga: no queda bloqueado
     // si el usuario entra a Películas mientras otra operación está ocupada.
     LaunchedEffect(section, authenticated, customerUsername, customerPassword, movieRetry) {
@@ -189,6 +190,12 @@ fun MiIptvApp() {
 
 
     LaunchedEffect(Unit) {
+        val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+        val lastPromoDay = securePrefs.getString("last_effecto_promo_day", "") ?: ""
+        if (lastPromoDay != today) {
+            showDailyPromo = true
+            securePrefs.edit().putString("last_effecto_promo_day", today).apply()
+        }
         playlistUrl = securePrefs.getString("playlist_url", "") ?: ""
         host = securePrefs.getString("host", "") ?: ""
         username = securePrefs.getString("username", "") ?: ""
@@ -235,6 +242,17 @@ fun MiIptvApp() {
                 updateDialog = Triple(info.second, info.third, info.fourth)
             }
         } catch (_: Exception) { /* sin aviso si no hay conexión */ }
+    }
+
+    // Consulta de solo lectura cada 6 horas mientras Efecto TV permanece abierto.
+    // Reutiliza app-update-check, que lee tv_app_update_settings sin modificar datos.
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(6L * 60L * 60L * 1000L)
+            try {
+                withContext(Dispatchers.IO) { fetchAuthorizedAppUpdate() }
+            } catch (_: Exception) { /* mantener la reproducción aunque no haya conexión */ }
+        }
     }
 
     val httpFactory = remember {
@@ -635,6 +653,8 @@ fun MiIptvApp() {
                         Section.HOME -> HomeScreen(
                             channelCount = channels.size,
                             status = status,
+                            showDailyPromo = showDailyPromo,
+                            onDismissPromo = { showDailyPromo = false },
                             onLive = { section = Section.LIVE },
                             onSettings = { status = "Tu acceso y tus listas se administran desde EFECTO TV." },
                             onMovies = { section = Section.MOVIES },
@@ -904,7 +924,7 @@ fun MiIptvApp() {
     }
 }
 
-@Composable private fun HomeScreen(channelCount: Int, status: String, onLive: () -> Unit, onSettings: () -> Unit, onMovies: () -> Unit, onSeries: () -> Unit) {
+@Composable private fun HomeScreen(channelCount: Int, status: String, showDailyPromo: Boolean, onDismissPromo: () -> Unit, onLive: () -> Unit, onSettings: () -> Unit, onMovies: () -> Unit, onSeries: () -> Unit) {
     LazyColumn(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
             Box(Modifier.fillMaxWidth().background(
@@ -925,6 +945,9 @@ fun MiIptvApp() {
                 }
             }
         }
+        if (showDailyPromo) {
+            item { DailyPromoCard(onDismiss = onDismissPromo) }
+        }
         item { Text("EXPLORAR", color = Cyan, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 2.sp) }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
@@ -939,6 +962,78 @@ fun MiIptvApp() {
             }
         }
         item { Text(status, color = Muted, fontSize = 11.sp) }
+    }
+}
+
+
+@Composable private fun DailyPromoCard(onDismiss: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF0D3550)),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .background(
+                    androidx.compose.ui.graphics.Brush.linearGradient(
+                        listOf(Color(0xFF0C5A83), Color(0xFF09283E), Color(0xFF071827))
+                    )
+                )
+                .padding(18.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "PUBLICIDAD",
+                        color = Color(0xFF8FE9F2),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 2.sp
+                    )
+                    Spacer(Modifier.weight(1f))
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(30.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Cerrar publicidad", tint = White)
+                    }
+                }
+                Text(
+                    "EFECTO LIMPIO",
+                    color = White,
+                    fontSize = 25.sp,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 1.sp
+                )
+                Text(
+                    "La limpieza que tu hogar merece",
+                    color = Color(0xFF8FE9F2),
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "Suavizantes • Jabón líquido • Detergentes • Desinfectantes",
+                    color = White,
+                    fontSize = 12.sp
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    "VENTA POR MENOR Y MAYOR",
+                    color = Color(0xFFFFD66B),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+                Text(
+                    "Pedidos por WhatsApp: 3765-149583",
+                    color = White,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    "A-J Distribuciones",
+                    color = Color(0xFFB8D8E8),
+                    fontSize = 10.sp
+                )
+            }
+        }
     }
 }
 
