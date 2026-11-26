@@ -13,6 +13,16 @@ Deno.serve(async req=>{
   if(!admin)return json({error:"Sin permisos de administrador"},403);
   const b=await req.json(),a=b.action;
   const validUrl=(v)=>!v||(typeof v==="string"&&v.length<=4096&&/^https?:\/\//i.test(v));
+  if(a==="upload_ad_image"){
+   const encoded=String(b.image_base64||""),mime=String(b.mime_type||"");
+   if(!["image/jpeg","image/png","image/webp"].includes(mime)||!encoded||encoded.length>7000000)return json({error:"Imagen inválida o demasiado grande. Elegí una foto de hasta 5 MB."},400);
+   const bytes=Uint8Array.from(atob(encoded),c=>c.charCodeAt(0));
+   const ext=mime==="image/png"?"png":mime==="image/webp"?"webp":"jpg";
+   const {error}=await db.storage.from("tv-advertisements").upload("current."+ext,bytes,{contentType:mime,upsert:true,cacheControl:"60"});
+   if(error)throw error;
+   const {data}=db.storage.from("tv-advertisements").getPublicUrl("current."+ext);
+   return json({ok:true,image_url:data.publicUrl});
+  }
   if(a==="get_ad"){
    const {data,error}=await db.from("tv_ad_settings").select("enabled,image_url,initial_delay_minutes,interval_minutes,duration_seconds,updated_at").eq("id",1).maybeSingle();
    if(error)throw error;return json(data||{enabled:false,image_url:"",initial_delay_minutes:3,interval_minutes:30,duration_seconds:8});
