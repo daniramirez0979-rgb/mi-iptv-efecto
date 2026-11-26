@@ -77,9 +77,18 @@ async function ordersList(){
   const canComplete=!!x.vendor_id&&['pending','approved','modified'].includes(x.status);
   const statusLabel=({draft:'Borrador',pending:'Pendiente',approved:'Aprobada',modified:'Modificada',rejected:'Rechazada',completed:'Completada · cobrada y entregada',cancel_requested:'Cancelación solicitada',cancelled:'Cancelada'})[x.status]||x.status;
   return '<article style="padding:13px;border:1px solid #c7e5f5;background:#f5fbff;border-radius:13px"><div class="row" style="align-items:flex-start"><div style="min-width:0;flex:1"><b style="color:#075985">Venta N.º '+esc(x.order_number)+'</b><div class="muted">'+new Date(x.created_at).toLocaleString('es-AR')+'</div></div><b style="font-size:12px">'+esc(statusLabel)+'</b></div><div style="margin-top:8px"><b>'+esc(vendors.get(x.vendor_id)||'Venta de administración')+'</b><div class="muted">'+esc(customersMap.get(x.customer_id)||(x.customer_id?'Cliente':'Venta fuera de cliente'))+'</div></div><div class="row" style="margin-top:10px"><span>'+(x.is_wholesale?'MAYORISTA':'MINORISTA')+'</span><b style="font-size:18px">'+money(x.total)+'</b></div>'+
-  (x.status==='completed'?'<p class="muted" style="margin:8px 0 0">Cliente: '+(x.customer_paid?'Cobrado':'Revisar cobro')+' · Entrega confirmada.</p>':canComplete?'<button class="complete-order" data-id="'+esc(x.id)+'" style="width:100%;margin-top:11px">✓ Cobrado y entregado · generar comisión</button>':'')+'</article>';
+  (x.status==='completed'?'<p class="muted" style="margin:8px 0 0">Cliente: '+(x.customer_paid?'Cobrado':'Revisar cobro')+' · Entrega confirmada.</p>':canComplete?'<button class="complete-order" data-id="'+esc(x.id)+'" style="width:100%;margin-top:11px">✓ Cobrado y entregado · generar comisión</button>':'')+(x.deleted_at?'<p class="muted" style="margin:8px 0 0;color:#b91c1c">Quitada del historial · '+esc(x.deletion_reason||'Sin detalle')+'</p>':(!['completed','cancelled'].includes(x.status)?'<button class="remove-test-order" data-id="'+esc(x.id)+'" style="width:100%;margin-top:8px;background:#fff1f2;color:#9f1239;border:1px solid #fecdd3">🗑 Quitar venta de prueba / error</button>':''))+'</article>';
  }).join('')+'</div>':'<p class="muted">Todavía no hay ventas registradas.</p>')+'<p class="muted">Se muestran hasta 200 ventas.</p>';
  $('refreshorders').onclick=()=>ordersList();
+ document.querySelectorAll('.remove-test-order').forEach(b=>b.onclick=async()=>{
+  const reason=prompt('Motivo para el registro administrativo (ej.: venta de prueba o carga incorrecta):','Venta de prueba o cargada por error');
+  if(reason===null)return;
+  if(!confirm('¿Quitar esta venta del historial del vendedor? La operación quedará registrada para administración y no se borrará físicamente.'))return;
+  b.disabled=true;
+  const {data,error}=await db.rpc('admin_remove_test_order',{p_order_id:b.dataset.id,p_reason:reason.trim()||'Venta de prueba o cargada por error'});
+  if(error||!data?.ok){alert('No se pudo quitar la venta: '+(error?.message||data?.message||'Error desconocido'));b.disabled=false;return}
+  await ordersList();
+ });
  view.onclick=async e=>{
   const b=e.target.closest('.complete-order');if(!b)return;
   const order=rows.find(x=>x.id===b.dataset.id);if(!order)return;
