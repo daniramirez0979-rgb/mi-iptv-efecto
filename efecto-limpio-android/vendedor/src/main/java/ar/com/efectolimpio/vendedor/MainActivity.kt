@@ -4,20 +4,38 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
+import android.os.Build
+import android.webkit.JavascriptInterface
+import java.util.UUID
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 
 class MainActivity : Activity() {
+    private inner class DeviceBridge {
+        @JavascriptInterface
+        fun installationId(): String {
+            val prefs = getSharedPreferences("efecto_vendor_device", MODE_PRIVATE)
+            var id = prefs.getString("installation_id", null)
+            if (id.isNullOrBlank()) {
+                id = UUID.randomUUID().toString()
+                prefs.edit().putString("installation_id", id).apply()
+            }
+            return id
+        }
+        @JavascriptInterface
+        fun deviceLabel(): String = "Android · " + Build.MODEL.take(70)
+    }
     private lateinit var webView: WebView
-    private val appUrl = "https://daniramirez0979-rgb.github.io/mi-iptv-efecto/efecto-limpio/vendedores/?appver=20261126-5"
+    private val appUrl = "https://daniramirez0979-rgb.github.io/mi-iptv-efecto/efecto-limpio/vendedores/?appver=20261126-6"
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         webView = WebView(this)
         webView.settings.javaScriptEnabled = true
+        webView.addJavascriptInterface(DeviceBridge(), "EfectoDevice")
         webView.settings.domStorageEnabled = true
         webView.settings.databaseEnabled = true
         webView.settings.cacheMode = android.webkit.WebSettings.LOAD_NO_CACHE
