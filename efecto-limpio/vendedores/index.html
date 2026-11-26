@@ -12,7 +12,9 @@
 <div class="foot">Efecto Limpio · A-J Distribuciones · WhatsApp 3765-149583</div></main>
 <script type="module">
 import {createClient} from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
-const deviceId=window.EfectoDevice?.installationId?.()||'';const deviceLabel=window.EfectoDevice?.deviceLabel?.()||'Dispositivo Android';
+function getWebInstallationId(){const key='efecto_limpio_vendor_installation_id_v1';let id=localStorage.getItem(key);if(!id){id=globalThis.crypto?.randomUUID?crypto.randomUUID():'el-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2)+'-'+Math.random().toString(36).slice(2);localStorage.setItem(key,id)}return id}
+const deviceId=window.EfectoDevice?.installationId?.()||getWebInstallationId();
+const deviceLabel=window.EfectoDevice?.deviceLabel?.()||(/Android/i.test(navigator.userAgent)?'Teléfono Android · Efecto Limpio':'Dispositivo web · Efecto Limpio');
 const db=createClient('https://edypzlttwcdrvwwvcouj.supabase.co','sb_publishable_C0w7aVDR9t3WiiWH5ejfDw_8xWw4atg',{global:{headers:deviceId?{'x-el-device':deviceId}:{}}});
 const $=id=>document.getElementById(id), login=$('login'), app=$('app'), view=$('view');
 let me=null, profile=null, products=[], customers=[], cart={}, profileChannel=null, accessTimer=null, checkingAccess=false, pendingDeviceTimer=null;
@@ -69,7 +71,7 @@ async function gate(session){
  if(error||!p||p.role!=='vendor'||p.active!==true||p.access_status!=='active'){
   await stopVendorSession('Tu cuenta no tiene acceso de vendedor habilitado.');return;
  }
- if(!deviceId){await stopVendorSession('Por seguridad, los vendedores deben ingresar desde la APK oficial instalada en el teléfono.');return}
+ if(!deviceId){await stopVendorSession('No se pudo identificar este dispositivo. Activá el almacenamiento del navegador y volvé a ingresar.');return}
  me=session.user;profile=p;
  const approved=await checkDeviceApproval(session);
  if(!approved){me=null;profile=null;return}
