@@ -6,18 +6,20 @@
 <header class="head"><div class="brand">🫧 EFECTO LIMPIO</div><div class="sub">Aplicación de vendedores · A-J Distribuciones</div></header>
 <main class="wrap">
 <section id="login" class="card login"><h1 class="h">Ingreso de vendedores</h1><p class="muted">Ingresá con el correo y la contraseña que te asignó la administración.</p><label>Correo electrónico</label><input id="email" type="email" autocomplete="username" placeholder="tu correo"><label>Contraseña</label><input id="password" type="password" autocomplete="current-password" placeholder="Tu contraseña"><button id="send" class="wide">Ingresar</button><button id="recover" class="wide secondary">Recuperar contraseña</button><p id="loginmsg" class="notice"></p></section>
+<section id="deviceWait" class="card login hidden"><h1 class="h">📱 Vinculación de dispositivo</h1><p id="deviceWaitText" class="muted">Tu teléfono está esperando autorización del administrador.</p><p class="muted">La cuenta de vendedor funciona en un solo teléfono autorizado. No cierres ni borres los datos de la aplicación.</p><button id="deviceRefresh" class="wide">Actualizar estado</button><button id="deviceLogout" class="wide secondary">Cerrar sesión</button></section>
 <section id="app" class="hidden"><div class="brandcard"><div class="brandword">EFECTO LIMPIO</div><div class="tag">Tu herramienta de ventas</div></div><div class="card"><div class="row"><div><b id="welcome">Hola, vendedor</b><div class="muted">A-J Distribuciones</div></div><button id="logout" class="secondary">Salir</button></div></div>
 <nav class="nav"><button class="on" data-tab="home">Inicio</button><button data-tab="products">Productos</button><button data-tab="customers">Mis clientes</button><button data-tab="neworder">Nuevo pedido</button><button data-tab="orders">Mis pedidos</button><button data-tab="commissions">Comisiones</button></nav><section id="view" class="card"></section></section>
 <div class="foot">Efecto Limpio · A-J Distribuciones · WhatsApp 3765-149583</div></main>
 <script type="module">
 import {createClient} from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
-const db=createClient('https://edypzlttwcdrvwwvcouj.supabase.co','sb_publishable_C0w7aVDR9t3WiiWH5ejfDw_8xWw4atg');
+const deviceId=window.EfectoDevice?.installationId?.()||'';const deviceLabel=window.EfectoDevice?.deviceLabel?.()||'Dispositivo Android';
+const db=createClient('https://edypzlttwcdrvwwvcouj.supabase.co','sb_publishable_C0w7aVDR9t3WiiWH5ejfDw_8xWw4atg',{global:{headers:deviceId?{'x-el-device':deviceId}:{}}});
 const $=id=>document.getElementById(id), login=$('login'), app=$('app'), view=$('view');
-let me=null, profile=null, products=[], customers=[], cart={}, profileChannel=null, accessTimer=null, checkingAccess=false;
+let me=null, profile=null, products=[], customers=[], cart={}, profileChannel=null, accessTimer=null, checkingAccess=false, pendingDeviceTimer=null;
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=v=>new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(Number(v||0));
 function msg(el,s,bad=false){el.textContent=s;el.className=bad?'notice bad':'notice'}
-function clearAccessWatch(){if(profileChannel){db.removeChannel(profileChannel);profileChannel=null}if(accessTimer){clearInterval(accessTimer);accessTimer=null}}
+function clearAccessWatch(){if(profileChannel){db.removeChannel(profileChannel);profileChannel=null}if(accessTimer){clearInterval(accessTimer);accessTimer=null}if(pendingDeviceTimer){clearInterval(pendingDeviceTimer);pendingDeviceTimer=null}}
 async function stopVendorSession(reason){
   me=null;profile=null;clearAccessWatch();
   try{await db.auth.signOut()}catch(_){}
@@ -43,15 +45,37 @@ function watchVendorAccess(){
     }).subscribe();
   accessTimer=setInterval(verifyVendorAccess,10000);
 }
+function showDeviceWait(message){login.classList.add('hidden');app.classList.add('hidden');$('deviceWait').classList.remove('hidden');$('deviceWaitText').textContent=message;}
+async function checkDeviceApproval(session){
+ const {data,error}=await db.rpc('vendor_claim_device',{p_installation_id:deviceId,p_device_label:deviceLabel});
+ if(error){showDeviceWait('No se pudo verificar el teléfono. Revisá la conexión y tocá Actualizar estado.');return false}
+ const result=data||{};
+ if(result.status==='approved'){
+  $('deviceWait').classList.add('hidden');if(pendingDeviceTimer){clearInterval(pendingDeviceTimer);pendingDeviceTimer=null}return true;
+ }
+ if(result.status==='pending'){
+  showDeviceWait('El teléfono '+(result.device_label||deviceLabel)+' quedó registrado. Falta que administración lo autorice desde el panel.');
+ }else if(result.status==='denied'){
+  showDeviceWait('Esta cuenta ya está vinculada a otro teléfono. Pedile al administrador que libere el anterior; después volvé a tocar Actualizar estado.');
+ }else{
+  showDeviceWait(result.message||'No se pudo validar este dispositivo.');
+ }
+ if(!pendingDeviceTimer)pendingDeviceTimer=setInterval(async()=>{if(!me&&session?.user?.id){const {data:{session:current}}=await db.auth.getSession();if(current)await checkDeviceApproval(current)}},7000);
+ return false;
+}
 async function gate(session){
-  if(!session){me=null;profile=null;clearAccessWatch();app.classList.add('hidden');login.classList.remove('hidden');return}
-  const {data:p,error}=await db.from('profiles').select('full_name,role,active,access_status').eq('id',session.user.id).maybeSingle();
-  if(error||!p||p.role!=='vendor'||p.active!==true||p.access_status!=='active'){
-    await stopVendorSession('Tu cuenta no tiene acceso de vendedor habilitado.');return;
-  }
-  me=session.user;profile=p;watchVendorAccess();
-  login.classList.add('hidden');app.classList.remove('hidden');$('welcome').textContent='Hola, '+(p.full_name||'vendedor');
-  await loadBase();await show('home');
+ if(!session){me=null;profile=null;clearAccessWatch();$('deviceWait').classList.add('hidden');app.classList.add('hidden');login.classList.remove('hidden');return}
+ const {data:p,error}=await db.from('profiles').select('full_name,role,active,access_status').eq('id',session.user.id).maybeSingle();
+ if(error||!p||p.role!=='vendor'||p.active!==true||p.access_status!=='active'){
+  await stopVendorSession('Tu cuenta no tiene acceso de vendedor habilitado.');return;
+ }
+ if(!deviceId){await stopVendorSession('Por seguridad, los vendedores deben ingresar desde la APK oficial instalada en el teléfono.');return}
+ me=session.user;profile=p;
+ const approved=await checkDeviceApproval(session);
+ if(!approved){me=null;profile=null;return}
+ watchVendorAccess();
+ login.classList.add('hidden');$('deviceWait').classList.add('hidden');app.classList.remove('hidden');$('welcome').textContent='Hola, '+(p.full_name||'vendedor');
+ await loadBase();await show('home');
 }
 async function loadBase(){const [p,c]=await Promise.all([db.from('products').select('id,name,description,unit,price,retail_price,wholesale_price,image_url').eq('active',true).order('sort_order'),db.from('customers').select('id,name,business_name,phone,whatsapp,city,address,notes').order('created_at',{ascending:false})]);products=p.data||[];customers=c.data||[]}
 function nav(tab){document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab))}
@@ -64,7 +88,7 @@ if(tab==='commissions'){const [r,p]=await Promise.all([db.from('vendor_commissio
 document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>show(b.dataset.tab));
 $('send').onclick=async()=>{const {data,error}=await db.auth.signInWithPassword({email:$('email').value.trim(),password:$('password').value});if(error){msg($('loginmsg'),'No se pudo ingresar. Revisá correo y contraseña.',true);return}await gate(data.session)};
 $('recover').onclick=async()=>{const email=$('email').value.trim();if(!email){msg($('loginmsg'),'Ingresá tu correo primero.',true);return}const {error}=await db.auth.resetPasswordForEmail(email);msg($('loginmsg'),error?error.message:'Si el correo está registrado, recibirás instrucciones.')};
-$('logout').onclick=async()=>{await db.auth.signOut();await gate(null)};
+$('logout').onclick=async()=>{await db.auth.signOut();await gate(null)};$('deviceRefresh').onclick=async()=>{const {data:{session}}=await db.auth.getSession();if(session){me=session.user;await checkDeviceApproval(session);if((await db.rpc('vendor_claim_device',{p_installation_id:deviceId,p_device_label:deviceLabel})).data?.status==='approved')await gate(session)}};$('deviceLogout').onclick=async()=>{await db.auth.signOut();await gate(null)};
 db.auth.onAuthStateChange((_event,session)=>{if(session){if(!me||me.id!==session.user.id)gate(session)}else{me=null;profile=null;clearAccessWatch();app.classList.add('hidden');login.classList.remove('hidden')}});
 const {data:{session}}=await db.auth.getSession();await gate(session);
 </script></body></html>
