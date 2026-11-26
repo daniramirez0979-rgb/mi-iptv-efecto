@@ -18,10 +18,48 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const money=v=>new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(Number(v||0));
 async function gate(session){if(!session){login.classList.remove('hidden');app.classList.add('hidden');return}const {data:p,error}=await db.from('profiles').select('full_name,role,active,access_status').eq('id',session.user.id).maybeSingle();if(error||!p||p.role!=='admin'||p.active!==true||p.access_status!=='active'){await db.auth.signOut();$('loginmsg').textContent='Este usuario no tiene permisos de administrador activos.';return}currentUser=session.user;login.classList.add('hidden');app.classList.remove('hidden');$('welcome').textContent='Hola, '+(p.full_name||'administrador');await dashboard()}
 async function dashboard(){const tabs=['products','customers','orders','vendor_commissions'];const rs=await Promise.all(tabs.map(t=>db.from(t).select('*',{count:'exact',head:true})));view.innerHTML='<h1 class="h">Resumen general</h1><p class="muted">Administrá tu negocio desde un solo lugar.</p><div class="metrics">'+tabs.map((t,i)=>'<div class="metric"><b>'+(rs[i].count??'—')+'</b><span>'+titles[t]+'</span></div>').join('')+'</div><p class="muted">Elegí Productos para actualizar precios, Clientes para cargar compradores o Ventas para revisar movimientos.</p>'}
+async function commissionList(){
+ document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab==='vendor_commissions'));
+ view.onclick=null;
+ view.innerHTML='<h2 class="h">Comisiones de vendedores</h2><p class="muted">Cada comisión se confirma como pagada únicamente cuando vos registrás el pago.</p><p class="muted">Cargando…</p>';
+ const {data,error}=await db.from('vendor_commissions').select('*').order('created_at',{ascending:false}).limit(200);
+ if(error){view.innerHTML='<h2 class="h">Comisiones de vendedores</h2><p class="muted">'+esc(error.message)+'</p>';return}
+ const rows=data||[];
+ const vendorIds=[...new Set(rows.map(x=>x.vendor_id).filter(Boolean))];
+ const orderIds=[...new Set(rows.map(x=>x.order_id).filter(Boolean))];
+ const [pr,orr]=await Promise.all([
+  vendorIds.length?db.from('profiles').select('id,full_name').in('id',vendorIds):Promise.resolve({data:[],error:null}),
+  orderIds.length?db.from('orders').select('id,order_number,status').in('id',orderIds):Promise.resolve({data:[],error:null})
+ ]);
+ if(pr.error||orr.error){view.innerHTML='<h2 class="h">Comisiones de vendedores</h2><p class="muted">'+esc(pr.error?.message||orr.error?.message)+'</p>';return}
+ const names=new Map((pr.data||[]).map(x=>[x.id,x.full_name||'Vendedor']));
+ const orders=new Map((orr.data||[]).map(x=>[x.id,x]));
+ const pending=rows.filter(x=>!x.paid_at&&!x.voided_at).reduce((a,x)=>a+Number(x.commission_amount||0),0);
+ const paid=rows.filter(x=>x.paid_at&&!x.voided_at).reduce((a,x)=>a+Number(x.commission_amount||0),0);
+ view.innerHTML='<div class="row"><h2 class="h">Comisiones de vendedores</h2><button class="secondary" id="refreshcomm">Actualizar</button></div><div class="metrics"><div class="metric"><b>'+money(pending)+'</b><span>Pendiente de pago</span></div><div class="metric"><b>'+money(paid)+'</b><span>Ya pagado</span></div></div>'+
+ (rows.length?'<div style="display:grid;gap:10px;margin-top:14px">'+rows.map((x,i)=>{
+  const o=orders.get(x.order_id),isPaid=!!x.paid_at,isVoid=!!x.voided_at;
+  const state=isVoid?'ANULADA':isPaid?'COMISIÓN PAGADA':'PENDIENTE DE PAGO';
+  return '<article style="padding:13px;border:1px solid #c7e5f5;background:#f5fbff;border-radius:13px"><div class="row" style="align-items:flex-start"><div style="min-width:0;flex:1"><b style="color:#075985">'+esc(names.get(x.vendor_id)||'Vendedor')+'</b><div class="muted">Venta N.º '+esc(o?.order_number??'—')+' · '+new Date(x.created_at).toLocaleDateString('es-AR')+'</div></div><b style="font-size:12px;color:'+(isPaid?'#166534':isVoid?'#64748b':'#a16207')+'">'+state+'</b></div><div style="display:flex;justify-content:space-between;gap:10px;margin-top:10px"><span>Venta: <b>'+money(x.sale_amount)+'</b></span><span>Comisión ('+esc(x.commission_rate)+'%): <b>'+money(x.commission_amount)+'</b></span></div>'+
+  (isPaid?'<p class="muted" style="margin:8px 0 0">Pagada el '+new Date(x.paid_at).toLocaleString('es-AR')+'. Confirmada por administración.</p>':isVoid?'<p class="muted">Esta comisión fue anulada.</p>':o?.status==='completed'?'<button class="commission-pay" data-id="'+esc(x.id)+'" style="margin-top:11px;width:100%">✓ Comisión de esta venta pagada</button>':'<p class="muted">Se habilita cuando la venta esté completada.</p>')+'</article>';
+ }).join('')+'</div>':'<p class="muted">Todavía no hay comisiones registradas.</p>')+'<p class="muted">Se muestran hasta 200 comisiones.</p>';
+ $('refreshcomm').onclick=()=>commissionList();
+ view.onclick=async e=>{
+  const b=e.target.closest('.commission-pay');if(!b)return;
+  const id=b.dataset.id;
+  if(!confirm('¿Confirmás que ya le pagaste esta comisión al vendedor, en efectivo o por transferencia?'))return;
+  b.disabled=true;b.textContent='Registrando pago…';
+  const {error}=await db.rpc('admin_mark_vendor_commission_paid',{p_commission_id:id});
+  if(error){alert('No se pudo registrar el pago: '+error.message);b.disabled=false;b.textContent='✓ Comisión de esta venta pagada';return}
+  alert('Pago de comisión registrado. El vendedor ya la verá como PAGADA.');
+  await commissionList();
+ };
+}
 async function list(tab){
  document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
  if(tab==='home')return dashboard();
  if(tab==='vendors')return vendors();
+ if(tab==='vendor_commissions')return commissionList();
  view.onclick=null;
  view.innerHTML='<h2 class="h">'+titles[tab]+'</h2><p class="muted">Cargando información…</p>';
  let query=db.from(tab).select('*').limit(100);
