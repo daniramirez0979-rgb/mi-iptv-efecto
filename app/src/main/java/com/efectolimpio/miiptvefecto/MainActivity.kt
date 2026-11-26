@@ -245,7 +245,7 @@ fun MiIptvApp() {
     LaunchedEffect(adConfig.imageUrl) {
         adBitmap = if (adConfig.enabled && adConfig.imageUrl.isNotBlank()) withContext(Dispatchers.IO) { try { URL(adConfig.imageUrl).openStream().use { BitmapFactory.decodeStream(it) } } catch (_: Exception) { null } } else null
     }
-    // Nunca interrumpe canales ni películas: solo aparece en Inicio tras la espera inicial.
+    // La publicidad puede aparecer en Inicio o superpuesta al video cuando está en pantalla completa.
     LaunchedEffect(authenticated) {
         if (authenticated) {
             var scheduled = false; var nextAt = 0L
@@ -253,7 +253,7 @@ fun MiIptvApp() {
                 delay(1000)
                 if (!adConfig.enabled || adBitmap == null) { scheduled = false; continue }
                 if (!scheduled) { nextAt = System.currentTimeMillis() + adConfig.initialDelayMinutes * 60_000L; scheduled = true }
-                if (System.currentTimeMillis() >= nextAt && section == Section.HOME && selected == null && !showAd) { showAd = true; nextAt = System.currentTimeMillis() + adConfig.intervalMinutes * 60_000L }
+                if (System.currentTimeMillis() >= nextAt && ((section == Section.HOME && selected == null) || (selected != null && isFullscreen)) && !showAd) { showAd = true; nextAt = System.currentTimeMillis() + adConfig.intervalMinutes * 60_000L }
             }
         } else { showAd = false }
     }
