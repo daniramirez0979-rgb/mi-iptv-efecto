@@ -26,10 +26,8 @@ Deno.serve(async req=>{
   if(a==="remove_ad"){
    const {error}=await db.from("tv_ad_settings").upsert({id:1,enabled:false,image_url:null,updated_at:new Date().toISOString()},{onConflict:"id"});
    if(error)throw error;
-   const {data:files,error:listError}=await db.storage.from("tv-advertisements").list();
-   if(listError)throw listError;
-   const names=(files||[]).filter(x=>/^current\\.(jpg|png|webp)$/.test(x.name)).map(x=>x.name);
-   if(names.length){const {error:removeError}=await db.storage.from("tv-advertisements").remove(names);if(removeError)throw removeError;}
+   const {error:removeError}=await db.storage.from("tv-advertisements").remove(["current.jpg","current.png","current.webp"]);
+   if(removeError)throw removeError;
    return json({ok:true});
   }
   if(a==="get_ad"){
