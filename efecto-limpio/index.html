@@ -7,13 +7,13 @@
 <main class="wrap">
 <section id="login" class="card login"><h1 class="h">Panel de administración</h1><p class="muted">Ingresá con el correo y la contraseña de administrador de Efecto Limpio.</p><label>Correo electrónico</label><input id="email" type="email" value="damiandeluca22@gmail.com" autocomplete="username"><label>Contraseña</label><input id="password" type="password" autocomplete="current-password" placeholder="Tu contraseña"><button id="send" class="wide">Ingresar al panel</button><button id="recover" class="wide secondary" type="button">Olvidé mi contraseña</button><p id="loginmsg" class="notice"></p></section>
 <section id="reset" class="card login hidden"><h1 class="h">Crear contraseña nueva</h1><p class="muted">Ingresá una contraseña nueva para tu administrador de Efecto Limpio.</p><label>Nueva contraseña</label><input id="newpassword" type="password" autocomplete="new-password" placeholder="Mínimo 6 caracteres"><button id="savepassword" class="wide">Guardar contraseña</button><p id="resetmsg" class="notice"></p></section>
-<section id="app" class="hidden"><div class="appbrand"><img src="./efecto-logo-header.jpg?v=6" alt="Efecto Limpio" style="display:block;width:min(390px,90%);height:auto;max-height:230px;object-fit:contain;margin:0 auto"><div class="tag">Limpieza que se siente</div><div class="bubbleline"></div></div><div class="row" style="margin:0 2px 12px"><span class="muted" id="welcome">Panel de control</span><button id="logout" class="secondary" title="Te pedirá confirmación antes de salir">Salir de mi cuenta</button></div><nav class="nav" id="nav"><button class="on" data-tab="home">Inicio</button><button data-tab="products">Productos</button><button data-tab="customers">Clientes</button><button data-tab="orders">Ventas</button><button data-tab="vendor_commissions">Comisiones</button><button data-tab="monthly_close">Cierre mensual</button><button data-tab="vendors">Vendedores</button></nav><section class="card" id="view"></section></section>
+<section id="app" class="hidden"><div class="appbrand"><img src="./efecto-logo-header.jpg?v=6" alt="Efecto Limpio" style="display:block;width:min(390px,90%);height:auto;max-height:230px;object-fit:contain;margin:0 auto"><div class="tag">Limpieza que se siente</div><div class="bubbleline"></div></div><div class="row" style="margin:0 2px 12px"><span class="muted" id="welcome">Panel de control</span><button id="logout" class="secondary" title="Te pedirá confirmación antes de salir">Salir de mi cuenta</button></div><nav class="nav" id="nav"><button class="on" data-tab="home">Inicio</button><button data-tab="products">Productos</button><button data-tab="customers">Clientes</button><button data-tab="orders">Ventas</button><button data-tab="vendor_commissions">Comisiones</button><button data-tab="monthly_close">Cierre mensual</button><button data-tab="backup">Respaldo</button><button data-tab="vendors">Vendedores</button></nav><section class="card" id="view"></section></section>
 <div class="foot">Efecto Limpio · A-J Distribuciones · WhatsApp 3765-149583 · Versión 26.11.26-C</div></main>
 <script type="module">
 import {createClient} from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 const db=createClient('https://edypzlttwcdrvwwvcouj.supabase.co','sb_publishable_C0w7aVDR9t3WiiWH5ejfDw_8xWw4atg');
 const $=id=>document.getElementById(id);const login=$('login'),app=$('app'),view=$('view');let currentUser=null;
-const titles={products:'Productos',customers:'Clientes',orders:'Ventas',vendor_commissions:'Comisiones',monthly_close:'Cierre mensual',vendors:'Vendedores'};
+const titles={products:'Productos',customers:'Clientes',orders:'Ventas',vendor_commissions:'Comisiones',monthly_close:'Cierre mensual',backup:'Respaldo',vendors:'Vendedores'};
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=v=>new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(Number(v||0));
 async function gate(session){if(!session){login.classList.remove('hidden');app.classList.add('hidden');return}const {data:p,error}=await db.from('profiles').select('full_name,role,active,access_status').eq('id',session.user.id).maybeSingle();if(error||!p||p.role!=='admin'||p.active!==true||p.access_status!=='active'){await db.auth.signOut();$('loginmsg').textContent='Este usuario no tiene permisos de administrador activos.';return}currentUser=session.user;login.classList.add('hidden');app.classList.remove('hidden');$('welcome').textContent='Hola, '+(p.full_name||'administrador');await dashboard()}
@@ -138,12 +138,40 @@ async function monthlyClose(){
  };
  await load();
 }
+async function backupPanel(){
+ document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab==='backup'));
+ view.onclick=null;
+ view.innerHTML='<h2 class="h">Respaldo de Efecto Limpio</h2><p class="muted">Descargá una copia de los datos administrativos para guardarla fuera de la aplicación.</p><div class="card"><b>¿Qué incluye?</b><p class="muted">Productos, clientes, pedidos, comisiones, pagos de comisiones y perfiles de vendedores.</p><p class="muted">El archivo contiene información comercial y datos de contacto. Guardalo en un lugar privado y seguro.</p><button id="downloadbackup" class="wide">⬇ Descargar respaldo completo</button><p id="backupmsg" class="notice"></p></div><p class="muted">El respaldo se descarga en este dispositivo. No modifica ni elimina información de la base de datos.</p>';
+ $('downloadbackup').onclick=async()=>{
+  const btn=$('downloadbackup'),msg=$('backupmsg');btn.disabled=true;msg.textContent='Preparando respaldo…';
+  try{
+   const tables=['products','customers','orders','vendor_commissions','vendor_commission_payouts','profiles'];
+   const backup={app:'Efecto Limpio',created_at:new Date().toISOString(),format_version:1,data:{}};
+   for(const table of tables){
+    const all=[];let from=0,step=500;
+    while(true){
+     const {data,error}=await db.from(table).select('*').range(from,from+step-1);
+     if(error)throw new Error('No se pudo respaldar '+table+': '+error.message);
+     const batch=data||[];all.push(...batch);if(batch.length<step)break;from+=step;
+    }
+    backup.data[table]=all;
+   }
+   const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});
+   const url=URL.createObjectURL(blob),a=document.createElement('a');
+   a.href=url;a.download='efecto-limpio-respaldo-'+new Date().toISOString().slice(0,10)+'.json';
+   document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+   msg.textContent='Respaldo descargado correctamente. Guardalo en un lugar seguro.';
+  }catch(err){msg.textContent='No se pudo completar el respaldo: '+err.message}
+  btn.disabled=false;
+ };
+}
 async function list(tab){
  document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
  if(tab==='home')return dashboard();
  if(tab==='vendors')return vendors();
  if(tab==='vendor_commissions')return commissionList();
  if(tab==='monthly_close')return monthlyClose();
+ if(tab==='backup')return backupPanel();
  if(tab==='orders')return ordersList();
  view.onclick=null;
  view.innerHTML='<h2 class="h">'+titles[tab]+'</h2><p class="muted">Cargando información…</p>';
