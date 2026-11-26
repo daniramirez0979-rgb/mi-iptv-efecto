@@ -15,7 +15,7 @@ class MainActivity : Activity() {
     private lateinit var status: LinearLayout
     private lateinit var message: TextView
     private lateinit var retry: Button
-    private val appUrl = "https://daniramirez0979-rgb.github.io/mi-iptv-efecto/efecto-limpio/?appver=20261126-2"
+    private val appUrl = "https://daniramirez0979-rgb.github.io/mi-iptv-efecto/efecto-limpio/?appver=20261126-3"
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
