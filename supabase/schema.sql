@@ -67,3 +67,8 @@ create table if not exists public.tv_ad_settings (
 insert into public.tv_ad_settings(id) values (1) on conflict (id) do nothing;
 alter table public.tv_ad_settings enable row level security;
 revoke all on public.tv_ad_settings from anon, authenticated;
+
+-- Bucket público de lectura para servir la foto; las cargas las hace admin-api con service_role tras validar al administrador.
+insert into storage.buckets (id,name,public,file_size_limit,allowed_mime_types)
+values ('tv-advertisements','tv-advertisements',true,5242880,array['image/jpeg','image/png','image/webp'])
+on conflict (id) do update set public=true,file_size_limit=5242880,allowed_mime_types=array['image/jpeg','image/png','image/webp'];
