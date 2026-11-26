@@ -13,6 +13,18 @@ Deno.serve(async req=>{
   if(!admin)return json({error:"Sin permisos de administrador"},403);
   const b=await req.json(),a=b.action;
   const validUrl=(v)=>!v||(typeof v==="string"&&v.length<=4096&&/^https?:\/\//i.test(v));
+  if(a==="get_ad"){
+   const {data,error}=await db.from("tv_ad_settings").select("enabled,image_url,initial_delay_minutes,interval_minutes,duration_seconds,updated_at").eq("id",1).maybeSingle();
+   if(error)throw error;return json(data||{enabled:false,image_url:"",initial_delay_minutes:3,interval_minutes:30,duration_seconds:8});
+  }
+  if(a==="set_ad"){
+   const image=String(b.image_url||"").trim(),initial=Number(b.initial_delay_minutes),interval=Number(b.interval_minutes),duration=Number(b.duration_seconds);
+   if(image&&!/^https:\/\//i.test(image))return json({error:"La imagen debe tener una URL HTTPS."},400);
+   if(!Number.isInteger(initial)||initial<1||initial>1440||!Number.isInteger(interval)||interval<5||interval>1440||!Number.isInteger(duration)||duration<3||duration>30)return json({error:"Tiempos inválidos."},400);
+   if(b.enabled&&!image)return json({error:"Ingresá el enlace de la imagen antes de activar la publicidad."},400);
+   const {error}=await db.from("tv_ad_settings").upsert({id:1,enabled:!!b.enabled,image_url:image||null,initial_delay_minutes:initial,interval_minutes:interval,duration_seconds:duration,updated_at:new Date().toISOString()},{onConflict:"id"});
+   if(error)throw error;return json({ok:true});
+  }
   if(a==="create"){
    const username=String(b.username||"").trim(),password=String(b.password||""),days=Number(b.days);
    if(!/^[a-zA-Z0-9_.-]{3,32}$/.test(username)||password.length<6||!Number.isInteger(days)||days<1||days>3650)return json({error:"Datos inválidos. Usuario 3-32 caracteres, contraseña mínimo 6 y días 1-3650."},400);
