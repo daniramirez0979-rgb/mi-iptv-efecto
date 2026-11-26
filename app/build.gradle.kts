@@ -11,7 +11,7 @@ android {
         minSdk = 23
         targetSdk = 35
         versionCode = 5
-        versionName = "2.1"
+        versionName = "2.2"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
