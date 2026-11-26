@@ -106,6 +106,7 @@ $('send').onclick=async()=>{const {data,error}=await db.auth.signInWithPassword(
 $('recover').onclick=async()=>{const email=$('email').value.trim();if(!email){msg($('loginmsg'),'Ingresá tu correo primero.',true);return}const {error}=await db.auth.resetPasswordForEmail(email);msg($('loginmsg'),error?error.message:'Si el correo está registrado, recibirás instrucciones.')};
 $('logout').onclick=async()=>{await db.auth.signOut();await gate(null)};$('deviceRefresh').onclick=async()=>{const {data:{session}}=await db.auth.getSession();if(session){me=session.user;await checkDeviceApproval(session);if((await db.rpc('vendor_claim_device',{p_installation_id:deviceId,p_device_label:deviceLabel})).data?.status==='approved')await gate(session)}};$('deviceLogout').onclick=async()=>{await db.auth.signOut();await gate(null)};
 db.auth.onAuthStateChange((_event,session)=>{if(session){if(!me||me.id!==session.user.id)gate(session)}else{me=null;profile=null;clearAccessWatch();app.classList.add('hidden');login.classList.remove('hidden')}});
-await loadSharedBrandMedia();setInterval(loadSharedBrandMedia,20000);\nconst {data:{session}}=await db.auth.getSession();await gate(session);
+await loadSharedBrandMedia();setInterval(loadSharedBrandMedia,20000);
+const {data:{session}}=await db.auth.getSession();await gate(session);
 if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('../sw.js?v=5',{updateViaCache:'none'}).then(r=>r.update()).catch(()=>{}));}
 </script></body></html>
