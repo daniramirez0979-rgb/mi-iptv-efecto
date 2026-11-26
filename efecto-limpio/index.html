@@ -7,13 +7,13 @@
 <main class="wrap">
 <section id="login" class="card login"><h1 class="h">Panel de administración</h1><p class="muted">Ingresá con el correo y la contraseña de administrador de Efecto Limpio.</p><label>Correo electrónico</label><input id="email" type="email" value="damiandeluca22@gmail.com" autocomplete="username"><label>Contraseña</label><input id="password" type="password" autocomplete="current-password" placeholder="Tu contraseña"><button id="send" class="wide">Ingresar al panel</button><button id="recover" class="wide secondary" type="button">Olvidé mi contraseña</button><p id="loginmsg" class="notice"></p></section>
 <section id="reset" class="card login hidden"><h1 class="h">Crear contraseña nueva</h1><p class="muted">Ingresá una contraseña nueva para tu administrador de Efecto Limpio.</p><label>Nueva contraseña</label><input id="newpassword" type="password" autocomplete="new-password" placeholder="Mínimo 6 caracteres"><button id="savepassword" class="wide">Guardar contraseña</button><p id="resetmsg" class="notice"></p></section>
-<section id="app" class="hidden"><div class="appbrand"><img src="./efecto-logo-header.jpg?v=6" alt="Efecto Limpio" style="display:block;width:min(390px,90%);height:auto;max-height:230px;object-fit:contain;margin:0 auto"><div class="tag">Limpieza que se siente</div><div class="bubbleline"></div></div><div class="row" style="margin:0 2px 12px"><span class="muted" id="welcome">Panel de control</span><button id="logout" class="secondary" title="Te pedirá confirmación antes de salir">Salir de mi cuenta</button></div><nav class="nav" id="nav"><button class="on" data-tab="home">Inicio</button><button data-tab="products">Productos</button><button data-tab="customers">Clientes</button><button data-tab="orders">Ventas</button><button data-tab="vendor_commissions">Comisiones</button><button data-tab="vendors">Vendedores</button></nav><section class="card" id="view"></section></section>
+<section id="app" class="hidden"><div class="appbrand"><img src="./efecto-logo-header.jpg?v=6" alt="Efecto Limpio" style="display:block;width:min(390px,90%);height:auto;max-height:230px;object-fit:contain;margin:0 auto"><div class="tag">Limpieza que se siente</div><div class="bubbleline"></div></div><div class="row" style="margin:0 2px 12px"><span class="muted" id="welcome">Panel de control</span><button id="logout" class="secondary" title="Te pedirá confirmación antes de salir">Salir de mi cuenta</button></div><nav class="nav" id="nav"><button class="on" data-tab="home">Inicio</button><button data-tab="products">Productos</button><button data-tab="customers">Clientes</button><button data-tab="orders">Ventas</button><button data-tab="vendor_commissions">Comisiones</button><button data-tab="monthly_close">Cierre mensual</button><button data-tab="vendors">Vendedores</button></nav><section class="card" id="view"></section></section>
 <div class="foot">Efecto Limpio · A-J Distribuciones · WhatsApp 3765-149583 · Versión 26.11.26-C</div></main>
 <script type="module">
 import {createClient} from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 const db=createClient('https://edypzlttwcdrvwwvcouj.supabase.co','sb_publishable_C0w7aVDR9t3WiiWH5ejfDw_8xWw4atg');
 const $=id=>document.getElementById(id);const login=$('login'),app=$('app'),view=$('view');let currentUser=null;
-const titles={products:'Productos',customers:'Clientes',orders:'Ventas',vendor_commissions:'Comisiones',vendors:'Vendedores'};
+const titles={products:'Productos',customers:'Clientes',orders:'Ventas',vendor_commissions:'Comisiones',monthly_close:'Cierre mensual',vendors:'Vendedores'};
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=v=>new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(Number(v||0));
 async function gate(session){if(!session){login.classList.remove('hidden');app.classList.add('hidden');return}const {data:p,error}=await db.from('profiles').select('full_name,role,active,access_status').eq('id',session.user.id).maybeSingle();if(error||!p||p.role!=='admin'||p.active!==true||p.access_status!=='active'){await db.auth.signOut();$('loginmsg').textContent='Este usuario no tiene permisos de administrador activos.';return}currentUser=session.user;login.classList.add('hidden');app.classList.remove('hidden');$('welcome').textContent='Hola, '+(p.full_name||'administrador');await dashboard()}
@@ -101,11 +101,49 @@ async function ordersList(){
   await ordersList();
  };
 }
+async function monthlyClose(){
+ document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab==='monthly_close'));
+ view.onclick=null;
+ const now=new Date(),month=String(now.getMonth()+1).padStart(2,'0'),year=now.getFullYear();
+ view.innerHTML='<h2 class="h">Cierre mensual</h2><p class="muted">Resumen de ventas, cobros y comisiones. Elegí el mes que querés revisar.</p><label for="closemonth">Mes</label><input id="closemonth" type="month" value="'+year+'-'+month+'"><p class="muted">Cargando…</p>';
+ const load=async()=>{
+  const value=$('closemonth').value;if(!value)return;
+  const [yy,mm]=value.split('-').map(Number);
+  const start=new Date(yy,mm-1,1).toISOString(),end=new Date(yy,mm,1).toISOString();
+  view.querySelector('p.muted:last-child').textContent='Calculando cierre…';
+  const [or,cr]=await Promise.all([
+   db.from('orders').select('id,order_number,vendor_id,status,total,customer_paid,created_at,deleted_at').gte('created_at',start).lt('created_at',end).is('deleted_at',null),
+   db.from('vendor_commissions').select('id,order_id,vendor_id,sale_amount,commission_amount,paid_at,voided_at,created_at').gte('created_at',start).lt('created_at',end)
+  ]);
+  if(or.error||cr.error){view.innerHTML='<h2 class="h">Cierre mensual</h2><p class="muted">No se pudo calcular: '+esc(or.error?.message||cr.error?.message)+'</p>';return}
+  const orders=or.data||[],comm=cr.data||[];
+  const completed=orders.filter(x=>x.status==='completed'&&x.customer_paid===true);
+  const open=orders.filter(x=>['pending','approved','modified'].includes(x.status));
+  const cancelled=orders.filter(x=>x.status==='cancelled');
+  const total=completed.reduce((a,x)=>a+Number(x.total||0),0);
+  const direct=completed.filter(x=>!x.vendor_id).reduce((a,x)=>a+Number(x.total||0),0);
+  const vendorSales=completed.filter(x=>!!x.vendor_id).reduce((a,x)=>a+Number(x.total||0),0);
+  const pendingValue=open.reduce((a,x)=>a+Number(x.total||0),0);
+  const validComm=comm.filter(x=>!x.voided_at);
+  const paid=validComm.filter(x=>!!x.paid_at).reduce((a,x)=>a+Number(x.commission_amount||0),0);
+  const unpaid=validComm.filter(x=>!x.paid_at).reduce((a,x)=>a+Number(x.commission_amount||0),0);
+  const ids=[...new Set(validComm.map(x=>x.vendor_id).filter(Boolean))];
+  const pr=ids.length?await db.from('profiles').select('id,full_name').in('id',ids):{data:[],error:null};
+  if(pr.error){view.innerHTML='<h2 class="h">Cierre mensual</h2><p class="muted">'+esc(pr.error.message)+'</p>';return}
+  const names=new Map((pr.data||[]).map(x=>[x.id,x.full_name||'Vendedor']));
+  const byVendor=new Map();
+  validComm.forEach(x=>{const v=byVendor.get(x.vendor_id)||{amount:0,paid:0,pending:0};v.amount+=Number(x.sale_amount||0);if(x.paid_at)v.paid+=Number(x.commission_amount||0);else v.pending+=Number(x.commission_amount||0);byVendor.set(x.vendor_id,v)});
+  view.innerHTML='<div class="row"><h2 class="h">Cierre mensual</h2><button class="secondary" id="refreshclose">Actualizar</button></div><label for="closemonth">Mes</label><input id="closemonth" type="month" value="'+value+'"><div class="metrics" style="margin-top:14px"><div class="metric"><b>'+money(total)+'</b><span>Ventas cobradas y entregadas</span></div><div class="metric"><b>'+money(pendingValue)+'</b><span>Pedidos pendientes</span></div><div class="metric"><b>'+money(paid)+'</b><span>Comisiones pagadas</span></div><div class="metric"><b>'+money(unpaid)+'</b><span>Comisiones pendientes</span></div></div><div class="card" style="margin-top:12px"><h3 class="h">Origen de las ventas cobradas</h3><p>Ventas propias de Efecto Limpio: <b>'+money(direct)+'</b></p><p>Ventas de vendedores: <b>'+money(vendorSales)+'</b></p><p class="muted">Pedidos ingresados: '+orders.length+' · En curso: '+open.length+' · Cancelados: '+cancelled.length+'</p></div><div class="card"><h3 class="h">Detalle por vendedor</h3>'+(byVendor.size?[...byVendor].map(([id,v])=>'<div style="padding:9px 0;border-bottom:1px solid #d9eaf3"><b>'+esc(names.get(id)||'Vendedor')+'</b><div class="muted">Ventas asociadas a comisiones: '+money(v.amount)+'</div><div class="muted">Comisión pagada: '+money(v.paid)+' · Pendiente: '+money(v.pending)+'</div></div>').join(''):'<p class="muted">Todavía no hay comisiones de vendedores en este mes.</p>')+'</div><p class="muted">El cierre toma pedidos por fecha de carga y comisiones por fecha de generación. Las ventas anuladas no suman. Este resumen es informativo; no bloquea ni modifica operaciones.</p>';
+  $('closemonth').onchange=load;$('refreshclose').onclick=load;
+ };
+ await load();
+}
 async function list(tab){
  document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
  if(tab==='home')return dashboard();
  if(tab==='vendors')return vendors();
  if(tab==='vendor_commissions')return commissionList();
+ if(tab==='monthly_close')return monthlyClose();
  if(tab==='orders')return ordersList();
  view.onclick=null;
  view.innerHTML='<h2 class="h">'+titles[tab]+'</h2><p class="muted">Cargando información…</p>';
