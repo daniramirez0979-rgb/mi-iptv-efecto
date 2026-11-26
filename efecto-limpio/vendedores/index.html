@@ -60,7 +60,7 @@ async function checkDeviceApproval(session){
  }else{
   showDeviceWait(result.message||'No se pudo validar este dispositivo.');
  }
- if(!pendingDeviceTimer)pendingDeviceTimer=setInterval(async()=>{if(!me&&session?.user?.id){const {data:{session:current}}=await db.auth.getSession();if(current)await checkDeviceApproval(current)}},7000);
+ if(!pendingDeviceTimer)pendingDeviceTimer=setInterval(async()=>{const {data:{session:current}}=await db.auth.getSession();if(current)await gate(current)},7000);
  return false;
 }
 async function gate(session){
