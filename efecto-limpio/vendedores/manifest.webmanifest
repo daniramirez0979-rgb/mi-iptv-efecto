@@ -12,10 +12,10 @@
   "theme_color": "#075985",
   "icons": [
     {
-      "src": "../app-icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "src": "../efecto-logo-icon.jpg?v=8",
+      "sizes": "128x128",
+      "type": "image/jpeg",
+      "purpose": "any"
     }
   ]
 }
