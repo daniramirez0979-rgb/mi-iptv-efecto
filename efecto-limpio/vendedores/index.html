@@ -13,11 +13,46 @@
 import {createClient} from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 const db=createClient('https://edypzlttwcdrvwwvcouj.supabase.co','sb_publishable_C0w7aVDR9t3WiiWH5ejfDw_8xWw4atg');
 const $=id=>document.getElementById(id), login=$('login'), app=$('app'), view=$('view');
-let me=null, profile=null, products=[], customers=[], cart={};
+let me=null, profile=null, products=[], customers=[], cart={}, profileChannel=null, accessTimer=null, checkingAccess=false;
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=v=>new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(Number(v||0));
 function msg(el,s,bad=false){el.textContent=s;el.className=bad?'notice bad':'notice'}
-async function gate(session){if(!session){me=null;app.classList.add('hidden');login.classList.remove('hidden');return}const {data:p,error}=await db.from('profiles').select('full_name,role,active,access_status').eq('id',session.user.id).maybeSingle();if(error||!p||p.role!=='vendor'||p.active!==true||p.access_status!=='active'){await db.auth.signOut();msg($('loginmsg'),'Tu cuenta no tiene acceso de vendedor habilitado.',true);return}me=session.user;profile=p;login.classList.add('hidden');app.classList.remove('hidden');$('welcome').textContent='Hola, '+(p.full_name||'vendedor');await loadBase();await show('home')}
+function clearAccessWatch(){if(profileChannel){db.removeChannel(profileChannel);profileChannel=null}if(accessTimer){clearInterval(accessTimer);accessTimer=null}}
+async function stopVendorSession(reason){
+  me=null;profile=null;clearAccessWatch();
+  try{await db.auth.signOut()}catch(_){}
+  app.classList.add('hidden');login.classList.remove('hidden');
+  msg($('loginmsg'),reason||'Tu sesión fue cerrada por la administración.',true);
+}
+async function verifyVendorAccess(){
+  if(!me||checkingAccess)return;checkingAccess=true;
+  const {data:p,error}=await db.from('profiles').select('full_name,role,active,access_status').eq('id',me.id).maybeSingle();
+  checkingAccess=false;
+  if(error||!p||p.role!=='vendor'||p.active!==true||p.access_status!=='active'){
+    await stopVendorSession('Tu acceso fue bloqueado o suspendido por la administración. Si necesitás ingresar, comunicate con Efecto Limpio.');
+  }else{profile=p}
+}
+function watchVendorAccess(){
+  clearAccessWatch();
+  profileChannel=db.channel('vendor-access-'+me.id)
+    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'profiles',filter:'id=eq.'+me.id},payload=>{
+      const p=payload.new||{};
+      if(p.role!=='vendor'||p.active!==true||p.access_status!=='active'){
+        stopVendorSession('La administración deshabilitó tu acceso. La sesión se cerró.');
+      }else{profile=p}
+    }).subscribe();
+  accessTimer=setInterval(verifyVendorAccess,10000);
+}
+async function gate(session){
+  if(!session){me=null;profile=null;clearAccessWatch();app.classList.add('hidden');login.classList.remove('hidden');return}
+  const {data:p,error}=await db.from('profiles').select('full_name,role,active,access_status').eq('id',session.user.id).maybeSingle();
+  if(error||!p||p.role!=='vendor'||p.active!==true||p.access_status!=='active'){
+    await stopVendorSession('Tu cuenta no tiene acceso de vendedor habilitado.');return;
+  }
+  me=session.user;profile=p;watchVendorAccess();
+  login.classList.add('hidden');app.classList.remove('hidden');$('welcome').textContent='Hola, '+(p.full_name||'vendedor');
+  await loadBase();await show('home');
+}
 async function loadBase(){const [p,c]=await Promise.all([db.from('products').select('id,name,description,unit,price,retail_price,wholesale_price').eq('active',true).order('sort_order'),db.from('customers').select('id,name,business_name,phone,whatsapp,city,address,notes').order('created_at',{ascending:false})]);products=p.data||[];customers=c.data||[]}
 function nav(tab){document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab))}
 async function show(tab){nav(tab);if(tab==='home'){const [o,cm]=await Promise.all([db.from('orders').select('id,status,total',{count:'exact'}),db.from('vendor_commissions').select('commission_amount,paid_at,voided_at')]);const open=(o.data||[]).filter(x=>x.status==='pending').length;const earned=(cm.data||[]).filter(x=>!x.voided_at).reduce((a,x)=>a+Number(x.commission_amount||0),0);view.innerHTML='<h2 class="h">Resumen de ventas</h2><p class="muted">Tu actividad y tus resultados.</p><div class="metricgrid"><div class="metric"><b>'+customers.length+'</b><span>Clientes propios</span></div><div class="metric"><b>'+products.length+'</b><span>Productos activos</span></div><div class="metric"><b>'+open+'</b><span>Pedidos pendientes</span></div><div class="metric"><b>'+money(earned)+'</b><span>Comisiones generadas</span></div></div><button id="quick" class="wide">＋ Registrar un pedido</button>'; $('quick').onclick=()=>show('neworder');return}
@@ -30,6 +65,6 @@ document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>show(b.dataset.
 $('send').onclick=async()=>{const {data,error}=await db.auth.signInWithPassword({email:$('email').value.trim(),password:$('password').value});if(error){msg($('loginmsg'),'No se pudo ingresar. Revisá correo y contraseña.',true);return}await gate(data.session)};
 $('recover').onclick=async()=>{const email=$('email').value.trim();if(!email){msg($('loginmsg'),'Ingresá tu correo primero.',true);return}const {error}=await db.auth.resetPasswordForEmail(email);msg($('loginmsg'),error?error.message:'Si el correo está registrado, recibirás instrucciones.')};
 $('logout').onclick=async()=>{await db.auth.signOut();await gate(null)};
-db.auth.onAuthStateChange((_event,session)=>{if(session)gate(session)});
+db.auth.onAuthStateChange((_event,session)=>{if(session){if(!me||me.id!==session.user.id)gate(session)}else{me=null;profile=null;clearAccessWatch();app.classList.add('hidden');login.classList.remove('hidden')}});
 const {data:{session}}=await db.auth.getSession();await gate(session);
 </script></body></html>
