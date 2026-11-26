@@ -251,6 +251,12 @@ fun MiIptvApp() {
             delay(6L * 60L * 60L * 1000L)
             try {
                 withContext(Dispatchers.IO) { fetchAuthorizedAppUpdate() }
+                val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+                val lastPromoDay = securePrefs.getString("last_effecto_promo_day", "") ?: ""
+                if (lastPromoDay != today) {
+                    showDailyPromo = true
+                    securePrefs.edit().putString("last_effecto_promo_day", today).apply()
+                }
             } catch (_: Exception) { /* mantener la reproducción aunque no haya conexión */ }
         }
     }
