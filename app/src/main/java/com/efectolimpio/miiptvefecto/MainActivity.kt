@@ -239,7 +239,7 @@ fun MiIptvApp() {
 
     // Configuración remota de publicidad administrada desde el panel.
     LaunchedEffect(authenticated) {
-        if (authenticated) { while (true) { try { adConfig = withContext(Dispatchers.IO) { fetchTvAdConfig() } } catch (_: Exception) { }; delay(15 * 60 * 1000L) } }
+        if (authenticated) { while (true) { try { val latest = withContext(Dispatchers.IO) { fetchTvAdConfig() }; adConfig = latest; if (!latest.enabled) showAd = false } catch (_: Exception) { }; delay(60 * 1000L) } }
         else { adConfig = TvAdConfig(); adBitmap = null; showAd = false }
     }
     LaunchedEffect(adConfig.imageUrl) {
