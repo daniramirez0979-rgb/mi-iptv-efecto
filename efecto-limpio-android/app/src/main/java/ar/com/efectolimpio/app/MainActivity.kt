@@ -15,7 +15,7 @@ class MainActivity : Activity() {
     private lateinit var status: LinearLayout
     private lateinit var message: TextView
     private lateinit var retry: Button
-    private val appUrl = "https://daniramirez0979-rgb.github.io/mi-iptv-efecto/efecto-limpio/"
+    private val appUrl = "https://daniramirez0979-rgb.github.io/mi-iptv-efecto/efecto-limpio/?appver=20261126-2"
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -29,7 +29,8 @@ class MainActivity : Activity() {
         webView.settings.allowContentAccess = false
         webView.settings.javaScriptCanOpenWindowsAutomatically = false
         webView.settings.loadsImagesAutomatically = true
-        webView.settings.cacheMode = WebSettings.LOAD_DEFAULT
+        webView.settings.cacheMode = WebSettings.LOAD_NO_CACHE
+        webView.clearCache(true)
         webView.webChromeClient = WebChromeClient()
         status = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; setPadding(32,32,32,32); setBackgroundColor(Color.rgb(239,249,255)) }
         val brand = TextView(this).apply { text = "EFECTO LIMPIO"; textSize = 27f; setTextColor(Color.rgb(5,65,125)); typeface = Typeface.create("sans-serif",Typeface.BOLD_ITALIC); gravity = Gravity.CENTER }
@@ -49,7 +50,8 @@ class MainActivity : Activity() {
                 return true
             }
         }
-        if (savedInstanceState == null) webView.loadUrl(appUrl) else webView.restoreState(savedInstanceState)
+        webView.clearHistory()
+        webView.loadUrl(appUrl)
     }
     private fun showLoading() { status.visibility=View.VISIBLE; message.text="Abriendo el panel de administración…"; retry.visibility=View.GONE }
     private fun showFailure(text:String) { status.visibility=View.VISIBLE; message.text=text; retry.visibility=View.VISIBLE }
