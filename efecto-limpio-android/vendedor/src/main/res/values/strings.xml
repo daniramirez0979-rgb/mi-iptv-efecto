@@ -1,1 +1,3 @@
-<resources><string name="app_name">Efecto Limpio Vendedor</string></resources>
+<resources>
+    <string name="app_name">Vendedor Efecto Limpio</string>
+</resources>
