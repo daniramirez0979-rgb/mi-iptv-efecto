@@ -11,7 +11,7 @@ import android.webkit.WebViewClient
 
 class MainActivity : Activity() {
     private lateinit var webView: WebView
-    private val appUrl = "https://daniramirez0979-rgb.github.io/mi-iptv-efecto/efecto-limpio/vendedores/?appver=20261126-4"
+    private val appUrl = "https://daniramirez0979-rgb.github.io/mi-iptv-efecto/efecto-limpio/vendedores/?appver=20261126-5"
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
