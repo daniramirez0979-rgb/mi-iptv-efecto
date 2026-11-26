@@ -1,5 +1,5 @@
-const CACHE = "efecto-limpio-shell-v6";
-const SHELL = ["./manifest.webmanifest", "./app-icon.svg", "./efecto-logo-icon.jpg"];
+const CACHE = "efecto-limpio-shell-v7";
+const SHELL = ["./manifest.webmanifest", "./app-icon.svg"];
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)));
   self.skipWaiting();
