@@ -21,7 +21,7 @@ Deno.serve(async req=>{
    const {error}=await db.storage.from("tv-advertisements").upload("current."+ext,bytes,{contentType:mime,upsert:true,cacheControl:"60"});
    if(error)throw error;
    const {data}=db.storage.from("tv-advertisements").getPublicUrl("current."+ext);
-   return json({ok:true,image_url:data.publicUrl});
+   return json({ok:true,image_url:data.publicUrl+"?v="+Date.now()});
   }
   if(a==="remove_ad"){
    const {error}=await db.from("tv_ad_settings").upsert({id:1,enabled:false,image_url:null,updated_at:new Date().toISOString()},{onConflict:"id"});
