@@ -7,13 +7,13 @@
 <main class="wrap">
 <section id="login" class="card login"><div class="loginbrand"><img src="./efecto-logo-icon.jpg?v=9" alt="Efecto Limpio"><div class="loginbrand-title">EFECTO LIMPIO</div><div class="loginbrand-sub">Administración · A-J Distribuciones</div><div class="loginbrand-contact">Pedidos y consultas · WhatsApp 3765-149583</div></div><h1 class="h">Panel de administración</h1><p class="muted">Ingresá con el correo y la contraseña de administrador de Efecto Limpio.</p><label>Correo electrónico</label><input id="email" type="email" value="damiandeluca22@gmail.com" autocomplete="username"><label>Contraseña</label><input id="password" type="password" autocomplete="current-password" placeholder="Tu contraseña"><button id="send" class="wide">Ingresar al panel</button><button id="recover" class="wide secondary" type="button">Olvidé mi contraseña</button><p id="loginmsg" class="notice"></p></section>
 <section id="reset" class="card login hidden"><h1 class="h">Crear contraseña nueva</h1><p class="muted">Ingresá una contraseña nueva para tu administrador de Efecto Limpio.</p><label>Nueva contraseña</label><input id="newpassword" type="password" autocomplete="new-password" placeholder="Mínimo 6 caracteres"><button id="savepassword" class="wide">Guardar contraseña</button><p id="resetmsg" class="notice"></p></section>
-<section id="app" class="hidden"><div class="appbrand"><img src="./efecto-logo-header.jpg?v=6" alt="Efecto Limpio" style="display:block;width:min(390px,90%);height:auto;max-height:230px;object-fit:contain;margin:0 auto"><div class="tag">Limpieza que se siente</div><div class="bubbleline"></div></div><div class="row" style="margin:0 2px 12px"><span class="muted" id="welcome">Panel de control</span><button id="logout" class="secondary" title="Te pedirá confirmación antes de salir">Salir de mi cuenta</button></div><nav class="nav" id="nav"><button class="on" data-tab="home">Inicio</button><button data-tab="products">Productos</button><button data-tab="customers">Clientes</button><button data-tab="orders">Ventas</button><button data-tab="vendor_commissions">Comisiones</button><button data-tab="monthly_close">Cierre mensual</button><button data-tab="backup">Respaldo</button><button data-tab="vendors">Vendedores</button></nav><section class="card" id="view"></section></section>
-<div class="foot">Efecto Limpio · A-J Distribuciones · WhatsApp 3765-149583 · Versión 26.11.26-C</div></main>
+<section id="app" class="hidden"><div class="appbrand"><img src="./efecto-logo-header.jpg?v=6" alt="Efecto Limpio" style="display:block;width:min(390px,90%);height:auto;max-height:230px;object-fit:contain;margin:0 auto"><div class="tag">Limpieza que se siente</div><div class="bubbleline"></div></div><div class="row" style="margin:0 2px 12px"><span class="muted" id="welcome">Panel de control</span><button id="logout" class="secondary" title="Te pedirá confirmación antes de salir">Salir de mi cuenta</button></div><nav class="nav" id="nav"><button class="on" data-tab="home">Inicio</button><button data-tab="products">Productos</button><button data-tab="customers">Clientes</button><button data-tab="orders">Ventas</button><button data-tab="vendor_commissions">Comisiones</button><button data-tab="monthly_close">Cierre mensual</button><button data-tab="backup">Respaldo</button><button data-tab="shared_media">Imágenes compartidas</button><button data-tab="vendors">Vendedores</button></nav><section class="card" id="view"></section></section>
+<div class="foot">Efecto Limpio · A-J Distribuciones · WhatsApp 3765-149583 · Versión 26.11.26-D</div></main>
 <script type="module">
 import {createClient} from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 const db=createClient('https://edypzlttwcdrvwwvcouj.supabase.co','sb_publishable_C0w7aVDR9t3WiiWH5ejfDw_8xWw4atg');
 const $=id=>document.getElementById(id);const login=$('login'),app=$('app'),view=$('view');let currentUser=null;
-const titles={products:'Productos',customers:'Clientes',orders:'Ventas',vendor_commissions:'Comisiones',monthly_close:'Cierre mensual',backup:'Respaldo',vendors:'Vendedores'};
+const titles={products:'Productos',customers:'Clientes',orders:'Ventas',vendor_commissions:'Comisiones',monthly_close:'Cierre mensual',backup:'Respaldo',shared_media:'Imágenes compartidas',vendors:'Vendedores'};
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=v=>new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(Number(v||0));
 async function gate(session){if(!session){login.classList.remove('hidden');app.classList.add('hidden');return}const {data:p,error}=await db.from('profiles').select('full_name,role,active,access_status').eq('id',session.user.id).maybeSingle();if(error||!p||p.role!=='admin'||p.active!==true||p.access_status!=='active'){await db.auth.signOut();$('loginmsg').textContent='Este usuario no tiene permisos de administrador activos.';return}currentUser=session.user;login.classList.add('hidden');app.classList.remove('hidden');$('welcome').textContent='Hola, '+(p.full_name||'administrador');await dashboard()}
@@ -165,6 +165,53 @@ async function backupPanel(){
   btn.disabled=false;
  };
 }
+async function sharedMediaPanel(){
+ document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab==='shared_media'));
+ view.onclick=null;
+ view.innerHTML='<h2 class="h">Imagen compartida de portada</h2><p class="muted">Subí una foto desde acá una sola vez. Se mostrará en la portada de la aplicación de vendedores, sin cargarla de nuevo ni instalar otra APK.</p><div class="card"><div id="sharedPreview" style="min-height:110px;display:grid;place-items:center;background:#eef8ff;border:1px dashed #9bcde5;border-radius:12px;padding:10px"><span class="muted">Cargando imagen actual…</span></div><label>Elegir foto nueva</label><input id="sharedImageFile" type="file" accept="image/jpeg,image/png,image/webp"><p class="muted">Formatos: JPG, PNG o WEBP. Máximo 8 MB. Recomendado: foto horizontal, bien iluminada y con el producto completo.</p><button id="uploadSharedImage" class="wide">Guardar y publicar para vendedores</button><button id="removeSharedImage" class="wide danger" type="button">Quitar imagen de portada</button><p id="sharedImageMsg" class="notice"></p></div><p class="muted">La imagen se guarda en la nube de Efecto Limpio. Los vendedores reciben la misma imagen automáticamente al abrir la aplicación; si ya la tienen abierta, se actualiza en unos segundos.</p>';
+ const preview=$('sharedPreview'),msg=$('sharedImageMsg');
+ let currentPath=null;
+ async function refreshPreview(){
+  const {data,error}=await db.from('app_settings').select('value,updated_at').eq('key','shared_brand_media').maybeSingle();
+  if(error){preview.innerHTML='<span class="muted">No se pudo leer la imagen: '+esc(error.message)+'</span>';return}
+  currentPath=data?.value?.image_path||null;
+  if(currentPath){
+   const {data:u}=db.storage.from('efecto-publicidad').getPublicUrl(currentPath);
+   preview.innerHTML='<img src="'+esc(u.publicUrl)+'?v='+encodeURIComponent(data?.updated_at||Date.now())+'" alt="Portada compartida" style="display:block;max-width:100%;max-height:260px;object-fit:contain;border-radius:10px"><span class="muted">Imagen activa para vendedores</span>';
+  }else preview.innerHTML='<span class="muted">Todavía no hay una foto cargada. Cuando subas una, aparecerá en la portada de vendedores.</span>';
+ }
+ await refreshPreview();
+ $('uploadSharedImage').onclick=async()=>{
+  const file=$('sharedImageFile').files?.[0];
+  if(!file){msg.textContent='Primero elegí una foto.';return}
+  if(!['image/jpeg','image/png','image/webp'].includes(file.type)){msg.textContent='Usá una imagen JPG, PNG o WEBP.';return}
+  if(file.size>8*1024*1024){msg.textContent='La foto supera el máximo de 8 MB.';return}
+  const btn=$('uploadSharedImage');btn.disabled=true;msg.textContent='Subiendo foto a la nube…';
+  try{
+   const ext=file.type==='image/png'?'png':file.type==='image/webp'?'webp':'jpg';
+   const path='portada/efecto-limpio-'+Date.now()+'.'+ext;
+   const {error:upErr}=await db.storage.from('efecto-publicidad').upload(path,file,{upsert:false,contentType:file.type,cacheControl:'3600'});
+   if(upErr)throw upErr;
+   const now=new Date().toISOString();
+   const {error:saveErr}=await db.from('app_settings').upsert({key:'shared_brand_media',value:{image_path:path,updated_at:now},updated_by:currentUser.id,updated_at:now},{onConflict:'key'});
+   if(saveErr){await db.storage.from('efecto-publicidad').remove([path]);throw saveErr}
+   if(currentPath&&currentPath!==path)await db.storage.from('efecto-publicidad').remove([currentPath]);
+   $('sharedImageFile').value='';await refreshPreview();msg.textContent='¡Listo! La foto quedó publicada para la aplicación de vendedores.';
+  }catch(err){msg.textContent='No se pudo publicar la foto: '+(err.message||String(err))}
+  btn.disabled=false;
+ };
+ $('removeSharedImage').onclick=async()=>{
+  if(!currentPath){msg.textContent='No hay ninguna foto para quitar.';return}
+  if(!confirm('¿Querés quitar la foto de portada también de la aplicación de vendedores?'))return;
+  const btn=$('removeSharedImage');btn.disabled=true;msg.textContent='Quitando imagen…';
+  const now=new Date().toISOString();
+  const {error}=await db.from('app_settings').upsert({key:'shared_brand_media',value:{image_path:null,updated_at:now},updated_by:currentUser.id,updated_at:now},{onConflict:'key'});
+  if(error){msg.textContent='No se pudo quitar: '+error.message;btn.disabled=false;return}
+  await db.storage.from('efecto-publicidad').remove([currentPath]);
+  await refreshPreview();msg.textContent='La imagen fue quitada de la portada compartida.';
+  btn.disabled=false;
+ }
+}
 async function list(tab){
  document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
  if(tab==='home')return dashboard();
@@ -172,6 +219,7 @@ async function list(tab){
  if(tab==='vendor_commissions')return commissionList();
  if(tab==='monthly_close')return monthlyClose();
  if(tab==='backup')return backupPanel();
+ if(tab==='shared_media')return sharedMediaPanel();
  if(tab==='orders')return ordersList();
  view.onclick=null;
  view.innerHTML='<h2 class="h">'+titles[tab]+'</h2><p class="muted">Cargando información…</p>';
