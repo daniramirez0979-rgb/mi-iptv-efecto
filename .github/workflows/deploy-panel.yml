@@ -21,11 +21,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Obtener código
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+      - name: Configurar GitHub Pages
+        uses: actions/configure-pages@v5
       - name: Preparar sitio
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: panel
       - name: Publicar
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5.0.1
