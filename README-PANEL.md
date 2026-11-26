@@ -24,3 +24,7 @@ La app necesita recibir la URL para reproducirla, por lo que no se puede garanti
 
 ## Cuenta de prueba
 No se creó todavía `damian1`. Se podrá crear desde el panel una vez conectado y desplegado Supabase.
+
+
+## Publicidad remota en TV Efecto
+La función requiere la migración de `tv_ad_settings` incluida al final de `supabase/schema.sql`, y desplegar la Edge Function `tv-advertisement`. El panel permite subir una foto JPG, PNG o WEBP al bucket público `tv-advertisements`, y configurar la espera inicial, el intervalo y la duración. La APK consulta esa configuración y solo muestra la imagen cuando el usuario está en Inicio; nunca sobre canales ni películas. Valores iniciales: 3 minutos, cada 30 minutos, 8 segundos. La primera actualización de APK incorpora el lector remoto; las siguientes imágenes y tiempos se cambian desde el panel.

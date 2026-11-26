@@ -10,9 +10,14 @@ android {
         applicationId = "com.efectolimpio.miiptvefecto.nueva3"
         minSdk = 23
         targetSdk = 35
-        versionCode = 4
-        versionName = "2.0"
+        versionCode = 5
+        versionName = "2.1"
     }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+    kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true; buildConfig = true }
 }
 dependencies {

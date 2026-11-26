@@ -54,3 +54,21 @@ grant execute on function public.verify_customer_login(text,text) to service_rol
 
 -- Tras crear el administrador en Supabase Auth, insertar su UUID:
 -- insert into public.admin_users(user_id) values ('UUID_DEL_ADMIN');
+
+
+-- Publicidad remota de TV Efecto. Solo configuración de anuncios; no almacena datos de Efecto Limpio.
+create table if not exists public.tv_ad_settings (
+  id integer primary key check (id=1), enabled boolean not null default false, image_url text,
+  initial_delay_minutes integer not null default 3 check (initial_delay_minutes between 1 and 1440),
+  interval_minutes integer not null default 30 check (interval_minutes between 5 and 1440),
+  duration_seconds integer not null default 8 check (duration_seconds between 3 and 30),
+  updated_at timestamptz not null default now()
+);
+insert into public.tv_ad_settings(id) values (1) on conflict (id) do nothing;
+alter table public.tv_ad_settings enable row level security;
+revoke all on public.tv_ad_settings from anon, authenticated;
+
+-- Bucket público de lectura para servir la foto; las cargas las hace admin-api con service_role tras validar al administrador.
+insert into storage.buckets (id,name,public,file_size_limit,allowed_mime_types)
+values ('tv-advertisements','tv-advertisements',true,5242880,array['image/jpeg','image/png','image/webp'])
+on conflict (id) do update set public=true,file_size_limit=5242880,allowed_mime_types=array['image/jpeg','image/png','image/webp'];

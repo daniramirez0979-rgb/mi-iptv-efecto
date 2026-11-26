@@ -1,6 +1,8 @@
 package com.efectolimpio.miiptvefecto
 
 import android.net.Uri
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.view.View
@@ -12,6 +14,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
@@ -28,6 +31,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -168,6 +175,9 @@ fun MiIptvApp() {
     var customerPassword by remember { mutableStateOf("") }
     var rememberCustomerLogin by remember { mutableStateOf(false) }
     var updateDialog by remember { mutableStateOf<Triple<String, String, String>?>(null) }
+    var adConfig by remember { mutableStateOf(TvAdConfig()) }
+    var adBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var showAd by remember { mutableStateOf(false) }
     // El catálogo VOD usa su propio estado de carga: no queda bloqueado
     // si el usuario entra a Películas mientras otra operación está ocupada.
     LaunchedEffect(section, authenticated, customerUsername, customerPassword, movieRetry) {
@@ -226,6 +236,28 @@ fun MiIptvApp() {
         }
     }
 
+
+    // Configuración remota de publicidad administrada desde el panel.
+    LaunchedEffect(authenticated) {
+        if (authenticated) { while (true) { try { val latest = withContext(Dispatchers.IO) { fetchTvAdConfig() }; adConfig = latest; if (!latest.enabled) showAd = false } catch (_: Exception) { }; delay(60 * 1000L) } }
+        else { adConfig = TvAdConfig(); adBitmap = null; showAd = false }
+    }
+    LaunchedEffect(adConfig.imageUrl) {
+        adBitmap = if (adConfig.enabled && adConfig.imageUrl.isNotBlank()) withContext(Dispatchers.IO) { try { URL(adConfig.imageUrl).openStream().use { BitmapFactory.decodeStream(it) } } catch (_: Exception) { null } } else null
+    }
+    // Nunca interrumpe canales ni películas: solo aparece en Inicio tras la espera inicial.
+    LaunchedEffect(authenticated) {
+        if (authenticated) {
+            var scheduled = false; var nextAt = 0L
+            while (true) {
+                delay(1000)
+                if (!adConfig.enabled || adBitmap == null) { scheduled = false; continue }
+                if (!scheduled) { nextAt = System.currentTimeMillis() + adConfig.initialDelayMinutes * 60_000L; scheduled = true }
+                if (System.currentTimeMillis() >= nextAt && section == Section.HOME && selected == null && !showAd) { showAd = true; nextAt = System.currentTimeMillis() + adConfig.intervalMinutes * 60_000L }
+            }
+        } else { showAd = false }
+    }
+    LaunchedEffect(showAd) { if (showAd) { delay(adConfig.durationSeconds * 1000L); showAd = false } }
 
     // Consulta silenciosa: el panel solo habilita el aviso cuando el administrador lo autoriza.
     LaunchedEffect(Unit) {
@@ -902,6 +934,13 @@ fun MiIptvApp() {
             }
         }
     }
+    if (showAd && adBitmap != null) {
+        Dialog(onDismissRequest = { showAd = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+            Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
+                Image(bitmap = adBitmap!!.asImageBitmap(), contentDescription = "Publicidad Efecto Limpio", modifier = Modifier.fillMaxWidth(0.78f).aspectRatio(16f / 9f), contentScale = ContentScale.Fit)
+            }
+        }
+    }
 }
 
 @Composable private fun HomeScreen(channelCount: Int, status: String, onLive: () -> Unit, onSettings: () -> Unit, onMovies: () -> Unit, onSeries: () -> Unit) {
@@ -1388,6 +1427,12 @@ private fun checkLatestAppRelease(): Pair<Int, String>? {
         }
         if (apkUrl.isBlank()) null else version to apkUrl
     } catch (_: Exception) { null } finally { connection.disconnect() }
+}
+
+private data class TvAdConfig(val enabled:Boolean=false,val imageUrl:String="",val initialDelayMinutes:Int=3,val intervalMinutes:Int=30,val durationSeconds:Int=8)
+private fun fetchTvAdConfig(): TvAdConfig {
+    val connection=(URL("https://zumorvkalqehzztvosce.supabase.co/functions/v1/tv-advertisement").openConnection() as HttpURLConnection).apply { requestMethod="GET";connectTimeout=8000;readTimeout=8000;setRequestProperty("apikey","sb_publishable_feT-R_JGExnqwyIrJgw4TQ_H3I0PVXS") }
+    return try { val json=org.json.JSONObject(connection.inputStream.bufferedReader().use{it.readText()});val image=json.optString("image_url","");TvAdConfig(json.optBoolean("enabled",false)&&image.startsWith("https://"),image,json.optInt("initial_delay_minutes",3).coerceIn(1,1440),json.optInt("interval_minutes",30).coerceIn(5,1440),json.optInt("duration_seconds",8).coerceIn(3,30)) } finally { connection.disconnect() }
 }
 
 private fun fetchAuthorizedAppUpdate(): QuadUpdate? {
