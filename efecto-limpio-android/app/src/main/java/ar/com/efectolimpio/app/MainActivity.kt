@@ -1,17 +1,15 @@
 package ar.com.efectolimpio.app
 
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import androidx.activity.ComponentActivity
-import androidx.activity.OnBackPressedCallback
 
-class MainActivity : ComponentActivity() {
+class MainActivity : Activity() {
     private lateinit var webView: WebView
     private val appUrl = "https://daniramirez0979-rgb.github.io/mi-iptv-efecto/efecto-limpio/"
 
@@ -31,10 +29,6 @@ class MainActivity : ComponentActivity() {
                 val uri = request.url
                 val host = uri.host ?: return true
                 if (host == "daniramirez0979-rgb.github.io") return false
-                if (uri.scheme == "https" && (host == "wa.me" || host.endsWith("whatsapp.com"))) {
-                    startActivity(Intent(Intent.ACTION_VIEW, uri))
-                    return true
-                }
                 if (uri.scheme == "https") {
                     startActivity(Intent(Intent.ACTION_VIEW, uri))
                     return true
@@ -44,21 +38,20 @@ class MainActivity : ComponentActivity() {
         }
         setContentView(webView)
         if (savedInstanceState == null) webView.loadUrl(appUrl) else webView.restoreState(savedInstanceState)
+    }
 
-        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() {
-                if (webView.canGoBack()) webView.goBack() else finish()
-            }
-        })
+    @Deprecated("Deprecated in Android API; retained for compatibility")
+    override fun onBackPressed() {
+        if (::webView.isInitialized && webView.canGoBack()) webView.goBack() else super.onBackPressed()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
-        webView.saveState(outState)
+        if (::webView.isInitialized) webView.saveState(outState)
         super.onSaveInstanceState(outState)
     }
 
     override fun onDestroy() {
-        webView.destroy()
+        if (::webView.isInitialized) webView.destroy()
         super.onDestroy()
     }
 }
