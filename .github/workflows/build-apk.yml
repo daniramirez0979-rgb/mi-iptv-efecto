@@ -112,11 +112,13 @@ jobs:
           from pathlib import Path
           p = Path("app/build.gradle.kts")
           s = p.read_text()
-          s, n = re.subn(r'versionCode\s*=\s*\d+', 'versionCode = ' + os.environ["GITHUB_RUN_NUMBER"], s, count=1)
+          s, n = re.subn(r'versionCode\\s*=\\s*\\d+', 'versionCode = ' + os.environ["GITHUB_RUN_NUMBER"], s, count=1)
           if n != 1:
               raise SystemExit("No se pudo actualizar versionCode")
+          if 'versionName = "2.1"' not in s:
+              raise SystemExit("La versión visible de la app no es 2.1; se cancela la publicación.")
           p.write_text(s)
-          print("Versión de APK:", os.environ["GITHUB_RUN_NUMBER"])
+          print("Versión visible de APK: 2.1; versionCode:", os.environ["GITHUB_RUN_NUMBER"])
           PY
 
       - name: Configurar firma permanente en Gradle
@@ -160,41 +162,43 @@ jobs:
         run: |
           APK_PATH="$(find . -type f -path "*/app/build/outputs/apk/debug/app-debug.apk" | head -n 1)"
           test -n "$APK_PATH"
-          cp "$APK_PATH" Efecto-TV-2.0.apk
-          test -s Efecto-TV-2.0.apk
+          cp "$APK_PATH" Efecto-TV-2.1.apk
+          test -s Efecto-TV-2.1.apk
 
       - name: Verificar identidad de la nueva aplicación
         id: compatibility
         run: |
           set -e
           BUILD_TOOLS="$ANDROID_HOME/build-tools/35.0.0"
-          NEW_PACKAGE="$("$BUILD_TOOLS/aapt" dump badging Efecto-TV-2.0.apk | sed -n "s/^package: name='\\([^']*\\)'.*/\\1/p" | head -n1)"
-          NEW_CERT="$("$BUILD_TOOLS/apksigner" verify --print-certs Efecto-TV-2.0.apk | sed -n 's/.*certificate SHA-256 digest: //p' | head -n1 | tr 'A-F' 'a-f')"
+          NEW_PACKAGE="$("$BUILD_TOOLS/aapt" dump badging Efecto-TV-2.1.apk | sed -n "s/^package: name='\\([^']*\\)'.*/\\1/p" | head -n1)"
+          NEW_VERSION="$("$BUILD_TOOLS/aapt" dump badging Efecto-TV-2.1.apk | sed -n "s/.* versionName='\\([^']*\\)'.*/\\1/p" | head -n1)"
+          NEW_CERT="$("$BUILD_TOOLS/apksigner" verify --print-certs Efecto-TV-2.1.apk | sed -n 's/.*certificate SHA-256 digest: //p' | head -n1 | tr 'A-F' 'a-f')"
           KEY_CERT="$(keytool -list -v -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey | awk '/SHA256:/{print $2; exit}' | tr -d ':' | tr 'A-F' 'a-f')"
-          echo "Paquete de la nueva app: $NEW_PACKAGE"
+          echo "Paquete: $NEW_PACKAGE"
+          echo "Versión visible: $NEW_VERSION"
           echo "Certificado APK SHA-256: $NEW_CERT"
-          echo "Certificado de la clave permanente SHA-256: $KEY_CERT"
-          if [ "$SIGNING_READY" = "true" ] && [ "$NEW_PACKAGE" = "com.efectolimpio.miiptvefecto.nueva3" ] && [ -n "$KEY_CERT" ] && [ "$NEW_CERT" = "$KEY_CERT" ]; then
+          echo "Certificado clave permanente SHA-256: $KEY_CERT"
+          if [ "$SIGNING_READY" = "true" ] && [ "$NEW_PACKAGE" = "com.efectolimpio.miiptvefecto.nueva3" ] && [ "$NEW_VERSION" = "2.1" ] && [ -n "$KEY_CERT" ] && [ "$NEW_CERT" = "$KEY_CERT" ]; then
             echo "UPDATE_COMPATIBLE=true" >> "$GITHUB_ENV"
-            echo "Identidad nueva verificada."
+            echo "Identidad y versión nueva verificadas."
           else
             echo "UPDATE_COMPATIBLE=false" >> "$GITHUB_ENV"
-            echo "::error::La APK no tiene la identidad esperada; no se publicará."
+            echo "::error::La APK no tiene la identidad, firma o versión esperada; no se publicará."
             exit 1
           fi
 
       - name: Guardar APK
         uses: actions/upload-artifact@v4
         with:
-          name: Efecto-TV-2.0
-          path: Efecto-TV-2.0.apk
+          name: Efecto-TV-2.1
+          path: Efecto-TV-2.1.apk
           if-no-files-found: error
 
       - name: Publicar nueva instalación estable de Efecto TV
         if: env.SIGNING_READY == 'true' && env.UPDATE_COMPATIBLE == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: efecto-tv-2.0
-          name: EFECTO TV 2.0
-          files: Efecto-TV-2.0.apk
+          tag_name: efecto-tv-2.1
+          name: EFECTO TV 2.1
+          files: Efecto-TV-2.1.apk
           make_latest: true
