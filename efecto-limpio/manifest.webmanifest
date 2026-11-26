@@ -1,0 +1,19 @@
+{
+  "name": "Efecto Limpio",
+  "short_name": "Efecto Limpio",
+  "description": "Administración, vendedores y asistente · A-J Distribuciones",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#edf5fa",
+  "theme_color": "#075985",
+  "icons": [
+    {
+      "src": "./app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
