@@ -23,12 +23,18 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
-      - name: Compilar APK administrador
+      - name: Compilar APK administrador y vendedor
         working-directory: efecto-limpio-android
-        run: gradle --no-daemon assembleDebug
-      - name: Guardar APK
+        run: gradle --no-daemon :app:assembleDebug :vendedor:assembleDebug
+      - name: Guardar APK Administrador
         uses: actions/upload-artifact@v4
         with:
           name: Efecto-Limpio-Administrador
           path: efecto-limpio-android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+      - name: Guardar APK Vendedor
+        uses: actions/upload-artifact@v4
+        with:
+          name: Efecto-Limpio-Vendedor
+          path: efecto-limpio-android/vendedor/build/outputs/apk/debug/vendedor-debug.apk
           if-no-files-found: error
