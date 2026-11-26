@@ -937,7 +937,7 @@ fun MiIptvApp() {
     if (showAd && adBitmap != null) {
         Dialog(onDismissRequest = { showAd = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
             Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
-                Image(bitmap = adBitmap!!.asImageBitmap(), contentDescription = "Publicidad Efecto Limpio", modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f), contentScale = ContentScale.Fit)
+                Image(bitmap = adBitmap!!.asImageBitmap(), contentDescription = "Publicidad Efecto Limpio", modifier = Modifier.fillMaxWidth(0.78f).aspectRatio(16f / 9f), contentScale = ContentScale.Fit)
             }
         }
     }
