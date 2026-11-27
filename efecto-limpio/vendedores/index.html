@@ -105,17 +105,22 @@ async function catalogPanel(){
   const btn=$('catalog_share');
   btn.disabled=true;
   try{
-   if(!window.EfectoDevice||typeof window.EfectoDevice.sharePdf!=='function'){
-    throw new Error('Esta función necesita abrirse desde la aplicación Android de vendedores actualizada. No se enviará un enlace web.');
-   }
    const r=await buildPdf();
-   $('catalog_msg').textContent='Catálogo PDF listo. Abriendo WhatsApp para adjuntar el documento…';
-   const bytes=await r.blob.arrayBuffer();
-   const binary=Array.from(new Uint8Array(bytes),b=>String.fromCharCode(b)).join('');
-   const base64=btoa(binary);
-   const shared=window.EfectoDevice.sharePdf(base64,r.filename);
-   if(!shared)throw new Error('Android no pudo preparar el archivo PDF para compartir.');
-   $('catalog_msg').textContent='¡PDF preparado! Elegí WhatsApp en la ventana que se abrió y enviá el documento al cliente. '+r.count+' productos incluidos.';
+   $('catalog_msg').textContent='Catálogo PDF listo. Preparando el documento para compartir…';
+   if(window.EfectoDevice&&typeof window.EfectoDevice.sharePdf==='function'){
+    const bytes=await r.blob.arrayBuffer();
+    const binary=Array.from(new Uint8Array(bytes),b=>String.fromCharCode(b)).join('');
+    const base64=btoa(binary);
+    const shared=window.EfectoDevice.sharePdf(base64,r.filename);
+    if(!shared)throw new Error('Android no pudo preparar el archivo PDF para compartir.');
+   }else{
+    const pdfFile=new File([r.blob],r.filename,{type:'application/pdf'});
+    if(!navigator.share||!navigator.canShare||!navigator.canShare({files:[pdfFile]})){
+     throw new Error('Este navegador no permite adjuntar archivos PDF directamente. Abrí el panel desde Chrome en Android e intentá nuevamente.');
+    }
+    await navigator.share({files:[pdfFile],title:'Catálogo Efecto Limpio',text:'Catálogo actualizado de Efecto Limpio'});
+   }
+   $('catalog_msg').textContent='¡PDF preparado! Elegí WhatsApp en la ventana que se abrió y enviá el documento como archivo. '+r.count+' productos incluidos.';
   }catch(e){
    $('catalog_msg').textContent='No se pudo compartir el catálogo PDF: '+(e.message||e);
   }finally{btn.disabled=false}
