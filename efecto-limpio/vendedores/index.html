@@ -138,5 +138,5 @@ $('recover').onclick=async()=>{const email=$('email').value.trim();if(!email){ms
 $('logout').onclick=async()=>{await db.auth.signOut();await gate(null)};$('deviceRefresh').onclick=async()=>{const {data:{session}}=await db.auth.getSession();if(session){me=session.user;await checkDeviceApproval(session);if((await db.rpc('vendor_claim_device',{p_installation_id:deviceId,p_device_label:deviceLabel})).data?.status==='approved')await gate(session)}};$('deviceLogout').onclick=async()=>{await db.auth.signOut();await gate(null)};
 db.auth.onAuthStateChange((_event,session)=>{if(session){if(!me||me.id!==session.user.id)gate(session)}else{me=null;profile=null;clearAccessWatch();app.classList.add('hidden');login.classList.remove('hidden')}});
 const {data:{session}}=await db.auth.getSession();await gate(session);
-if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('../sw.js?v=7',{updateViaCache:'none'}).then(r=>r.update()).catch(()=>{}));}
+if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('../sw.js?v=8',{updateViaCache:'none'}).then(r=>r.update()).catch(()=>{}));}
 </script></body></html>
