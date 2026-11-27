@@ -6,11 +6,14 @@ import android.graphics.Color
 import android.net.Uri
 import android.content.Intent
 import android.os.Bundle
+import android.util.Base64
 import android.view.Gravity
 import android.view.View
 import android.webkit.*
 import android.widget.*
 import android.graphics.Typeface
+import androidx.core.content.FileProvider
+import java.io.File
 
 class MainActivity : Activity() {
     private lateinit var webView: WebView
@@ -19,7 +22,28 @@ class MainActivity : Activity() {
     private lateinit var status: LinearLayout
     private lateinit var message: TextView
     private lateinit var retry: Button
-    private val appUrl = "https://daniramirez0979-rgb.github.io/mi-iptv-efecto/efecto-limpio/?appver=20261126-4"
+    private val appUrl = "https://daniramirez0979-rgb.github.io/mi-iptv-efecto/efecto-limpio/?appver=20261127-share1"
+
+    private inner class ShareBridge {
+        @JavascriptInterface
+        fun sharePdf(base64: String, filename: String): Boolean {
+            return try {
+                val dir = File(cacheDir, "shared").apply { mkdirs() }
+                val safeName = filename.replace(Regex("[^A-Za-z0-9._-]"), "-").let { if (it.endsWith(".pdf")) it else "$it.pdf" }
+                val file = File(dir, safeName)
+                file.writeBytes(Base64.decode(base64, Base64.DEFAULT))
+                val uri = FileProvider.getUriForFile(this@MainActivity, "ar.com.efectolimpio.app.fileprovider", file)
+                val send = Intent(Intent.ACTION_SEND).apply {
+                    type = "application/pdf"
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    clipData = android.content.ClipData.newUri(contentResolver, "Catálogo Efecto Limpio", uri)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                runOnUiThread { startActivity(Intent.createChooser(send, "Compartir catálogo por WhatsApp")) }
+                true
+            } catch (e: Exception) { false }
+        }
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -27,6 +51,7 @@ class MainActivity : Activity() {
         val root = FrameLayout(this)
         webView = WebView(this)
         webView.settings.javaScriptEnabled = true
+        webView.addJavascriptInterface(ShareBridge(), "EfectoNative")
         webView.settings.domStorageEnabled = true
         webView.settings.databaseEnabled = true
         webView.settings.allowFileAccess = false
@@ -36,23 +61,11 @@ class MainActivity : Activity() {
         webView.settings.cacheMode = WebSettings.LOAD_NO_CACHE
         webView.clearCache(true)
         webView.webChromeClient = object : WebChromeClient() {
-            override fun onShowFileChooser(
-                view: WebView,
-                filePathCallback: ValueCallback<Array<Uri>>,
-                fileChooserParams: FileChooserParams
-            ): Boolean {
+            override fun onShowFileChooser(view: WebView, filePathCallback: ValueCallback<Array<Uri>>, fileChooserParams: FileChooserParams): Boolean {
                 this@MainActivity.filePathCallback?.onReceiveValue(null)
                 this@MainActivity.filePathCallback = filePathCallback
-                return try {
-                    val intent = fileChooserParams.createIntent()
-                    startActivityForResult(intent, fileChooserRequestCode)
-                    true
-                } catch (e: Exception) {
-                    this@MainActivity.filePathCallback?.onReceiveValue(null)
-                    this@MainActivity.filePathCallback = null
-                    Toast.makeText(this@MainActivity, "No se pudo abrir la galería. Revisá que tengas una aplicación para seleccionar fotos.", Toast.LENGTH_LONG).show()
-                    false
-                }
+                return try { startActivityForResult(fileChooserParams.createIntent(), fileChooserRequestCode); true }
+                catch (e: Exception) { this@MainActivity.filePathCallback?.onReceiveValue(null); this@MainActivity.filePathCallback = null; Toast.makeText(this@MainActivity, "No se pudo abrir la galería.", Toast.LENGTH_LONG).show(); false }
             }
         }
         status = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; setPadding(32,32,32,32); setBackgroundColor(Color.rgb(239,249,255)) }
@@ -69,7 +82,7 @@ class MainActivity : Activity() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val uri=request.url; val host=uri.host ?: return true
                 if (host == "daniramirez0979-rgb.github.io" || host.endsWith(".supabase.co") || host == "cdn.jsdelivr.net") return false
-                if (uri.scheme == "https") { startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW,uri)); return true }
+                if (uri.scheme == "https") { startActivity(Intent(Intent.ACTION_VIEW,uri)); return true }
                 return true
             }
         }
@@ -80,18 +93,11 @@ class MainActivity : Activity() {
     private fun showFailure(text:String) { status.visibility=View.VISIBLE; message.text=text; retry.visibility=View.VISIBLE }
     @Deprecated("Deprecated in Android API; retained for compatibility")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        if (requestCode == fileChooserRequestCode) {
-            val callback = filePathCallback
-            filePathCallback = null
-            callback?.onReceiveValue(
-                if (resultCode == Activity.RESULT_OK) WebChromeClient.FileChooserParams.parseResult(resultCode, data) else null
-            )
-            return
-        }
-        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == fileChooserRequestCode) { val callback=filePathCallback; filePathCallback=null; callback?.onReceiveValue(if(resultCode==Activity.RESULT_OK) WebChromeClient.FileChooserParams.parseResult(resultCode,data) else null); return }
+        super.onActivityResult(requestCode,resultCode,data)
     }
     @Deprecated("Deprecated in Android API; retained for compatibility")
     override fun onBackPressed() { if (::webView.isInitialized && webView.canGoBack()) webView.goBack() else super.onBackPressed() }
     override fun onSaveInstanceState(outState:Bundle) { if (::webView.isInitialized) webView.saveState(outState); super.onSaveInstanceState(outState) }
-    override fun onDestroy() { filePathCallback?.onReceiveValue(null); filePathCallback = null; if (::webView.isInitialized) webView.destroy(); super.onDestroy() }
+    override fun onDestroy() { filePathCallback?.onReceiveValue(null); filePathCallback=null; if (::webView.isInitialized) webView.destroy(); super.onDestroy() }
 }
