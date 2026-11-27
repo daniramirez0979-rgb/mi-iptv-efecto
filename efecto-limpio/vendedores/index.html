@@ -101,7 +101,7 @@ async function catalogPanel(){
   const pages=doc.getNumberOfPages();for(let n=1;n<=pages;n++){doc.setPage(n);doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(90,110,125);doc.text('Efecto Limpio · A-J Distribuciones · WhatsApp 3765-149583',12,289);doc.text('Página '+n+' de '+pages,198,289,{align:'right'})}
   const stamp=new Date().toISOString().replace(/[:.]/g,'-');return {blob:doc.output('blob'),filename:'catalogo-efecto-limpio-'+stamp+'.pdf',title,count:products.length};
  }
- let catalogShareUrl=null,catalogPdfBlob=null,catalogPdfName=null;
+ let catalogShareUrl=null;
  $('catalog_share').onclick=async()=>{
   const btn=$('catalog_share');
   if(catalogShareUrl){
@@ -112,7 +112,6 @@ async function catalogPanel(){
   btn.disabled=true;
   try{
    const r=await buildPdf();
-   catalogPdfBlob=r.blob;catalogPdfName=r.filename;
    $('catalog_msg').textContent='Subiendo el catálogo para generar un enlace seguro…';
    const path=me.id+'/catalogo-actual.pdf';
    const {error:uploadError}=await db.storage.from('efecto-catalogos-pdf').upload(path,r.blob,{contentType:'application/pdf',upsert:true,cacheControl:'300'});
@@ -121,15 +120,9 @@ async function catalogPanel(){
    catalogShareUrl=data?.publicUrl;
    if(!catalogShareUrl)throw new Error('No se pudo obtener el enlace del catálogo.');
    btn.textContent='Enviar catálogo por WhatsApp';
-   $('catalog_msg').textContent='¡Catálogo listo! '+r.count+' productos incluidos. Tocá “Enviar catálogo por WhatsApp” para compartir el enlace. También podés descargar el PDF.';
-   const download=document.createElement('a');download.href=URL.createObjectURL(catalogPdfBlob);download.download=catalogPdfName;download.textContent='Descargar PDF';download.style='display:inline-block;margin-top:10px;padding:10px 14px;border-radius:10px;background:#e7f1f6;color:#14506b;font-weight:800;text-decoration:none';download.id='catalog_download';
-   const oldDownload=$('catalog_download');if(oldDownload)oldDownload.remove();$('catalog_msg').after(download);
+   $('catalog_msg').textContent='¡Catálogo listo! '+r.count+' productos incluidos. Tocá “Enviar catálogo por WhatsApp” para compartirlo.';
   }catch(e){
    $('catalog_msg').textContent='No se pudo preparar el catálogo: '+(e.message||e);
-   if(catalogPdfBlob){
-    const download=document.createElement('a');download.href=URL.createObjectURL(catalogPdfBlob);download.download=catalogPdfName||'catalogo-efecto-limpio.pdf';download.textContent='Descargar PDF';download.style='display:inline-block;margin-top:10px;padding:10px 14px;border-radius:10px;background:#e7f1f6;color:#14506b;font-weight:800;text-decoration:none';download.id='catalog_download';
-    const oldDownload=$('catalog_download');if(oldDownload)oldDownload.remove();$('catalog_msg').after(download);
-   }
   }finally{btn.disabled=false}
  };
 }
