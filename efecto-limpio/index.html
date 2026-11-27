@@ -59,7 +59,7 @@ async function commissionList(reset=false){
  document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab==='vendor_commissions'));
  view.onclick=null;
  view.innerHTML='<h2 class="h">Comisiones de vendedores</h2><p class="muted">Cada comisión se confirma como pagada únicamente cuando vos registrás el pago.</p><p class="muted">Cargando…</p>';
- const {data,error}=await db.from('vendor_commissions').select('*').order('created_at',{ascending:false}).limit(200);
+ const {data,error}=await db.from('vendor_commissions').select('*').order('created_at',{ascending:false}).limit(commissionLimit);
  if(error){view.innerHTML='<h2 class="h">Comisiones de vendedores</h2><p class="muted">'+esc(error.message)+'</p>';return}
  const allRows=data||[];
  const vendorIds=[...new Set(allRows.map(x=>x.vendor_id).filter(Boolean))];
@@ -119,7 +119,7 @@ async function ordersList(reset=false){
  document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab==='orders'));
  view.onclick=null;
  view.innerHTML='<h2 class="h">Ventas</h2><p class="muted">Cuando entregues el pedido y cobres al cliente, confirmalo acá. En ese momento se genera la comisión del vendedor.</p><p class="muted">Cargando…</p>';
- const {data,error}=await db.from('orders').select('*').is('deleted_at',null).neq('status','cancelled').order('created_at',{ascending:false}).limit(200);
+ const {data,error}=await db.from('orders').select('*').is('deleted_at',null).neq('status','cancelled').order('created_at',{ascending:false}).limit(ordersLimit);
  if(error){view.innerHTML='<h2 class="h">Ventas</h2><p class="muted">'+esc(error.message)+'</p>';return}
  const rows=data||[];
  const vendorIds=[...new Set(rows.map(x=>x.vendor_id).filter(Boolean))];
