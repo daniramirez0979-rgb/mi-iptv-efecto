@@ -2,16 +2,16 @@
   "name": "Efecto Limpio · Administración",
   "short_name": "Efecto Limpio",
   "description": "Panel de administración · A-J Distribuciones",
-  "start_url": "./",
+  "start_url": "./?icon=17",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#edf8ff",
+  "background_color": "#075985",
   "theme_color": "#075985",
   "icons": [
     {
-      "src": "/mi-iptv-efecto/efecto-limpio/app-icon.svg?v=16",
-      "sizes": "108x108",
+      "src": "/mi-iptv-efecto/efecto-limpio/app-icon.svg?v=17",
+      "sizes": "192x192 512x512",
       "type": "image/svg+xml",
       "purpose": "any"
     }
