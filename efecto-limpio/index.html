@@ -235,10 +235,12 @@ async function catalogPanel(){
     await navigator.share({files:[file],title:r.title,text:'Catálogo de Efecto Limpio'});
     msg.textContent='Catálogo actualizado: '+r.count+' productos activos incluidos. Elegí WhatsApp para enviar el PDF.';
    }else{
-    r.doc.save(r.filename);
-    msg.textContent='Catálogo actualizado: '+r.count+' productos activos incluidos. El PDF se descargó con nombre nuevo.';
+    const url=URL.createObjectURL(r.blob),a=document.createElement('a');
+    a.href=url;a.download=r.filename;a.style.display='none';document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),60000);
+    msg.textContent='Catálogo actualizado: '+r.count+' productos activos. El PDF se descargó; abrilo desde Descargas y compartilo por WhatsApp.';
    }
-  }catch(e){msg.textContent='No se pudo generar o compartir el PDF: '+(e.message||e)}
+  }catch(e){msg.textContent='No se pudo generar el catálogo: '+(e.message||e)+'. Probá nuevamente o descargá el PDF desde el botón.'}
   finally{btn.disabled=false}
 }
 }
