@@ -101,28 +101,23 @@ async function catalogPanel(){
   const pages=doc.getNumberOfPages();for(let n=1;n<=pages;n++){doc.setPage(n);doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(90,110,125);doc.text('Efecto Limpio · A-J Distribuciones · WhatsApp 3765-149583',12,289);doc.text('Página '+n+' de '+pages,198,289,{align:'right'})}
   const stamp=new Date().toISOString().replace(/[:.]/g,'-');return {blob:doc.output('blob'),filename:'catalogo-efecto-limpio-'+stamp+'.pdf',title,count:products.length};
  }
- let catalogShareUrl=null;
  $('catalog_share').onclick=async()=>{
   const btn=$('catalog_share');
-  if(catalogShareUrl){
-   const text='Te comparto el catálogo actualizado de Efecto Limpio. Podés ver y descargar el PDF desde este enlace: '+catalogShareUrl;
-   window.location.href='https://wa.me/?text='+encodeURIComponent(text);
-   return;
-  }
   btn.disabled=true;
   try{
+   if(!window.EfectoDevice||typeof window.EfectoDevice.sharePdf!=='function'){
+    throw new Error('Esta función necesita abrirse desde la aplicación Android de vendedores actualizada. No se enviará un enlace web.');
+   }
    const r=await buildPdf();
-   $('catalog_msg').textContent='Subiendo el catálogo para generar un enlace seguro…';
-   const path=me.id+'/catalogo-actual.pdf';
-   const {error:uploadError}=await db.storage.from('efecto-catalogos-pdf').upload(path,r.blob,{contentType:'application/pdf',upsert:true,cacheControl:'300'});
-   if(uploadError)throw new Error('No se pudo publicar el PDF: '+uploadError.message);
-   const {data}=db.storage.from('efecto-catalogos-pdf').getPublicUrl(path);
-   catalogShareUrl=data?.publicUrl;
-   if(!catalogShareUrl)throw new Error('No se pudo obtener el enlace del catálogo.');
-   btn.textContent='Enviar catálogo por WhatsApp';
-   $('catalog_msg').textContent='¡Catálogo listo! '+r.count+' productos incluidos. Tocá “Enviar catálogo por WhatsApp” para compartirlo.';
+   $('catalog_msg').textContent='Catálogo PDF listo. Abriendo WhatsApp para adjuntar el documento…';
+   const bytes=await r.blob.arrayBuffer();
+   const binary=Array.from(new Uint8Array(bytes),b=>String.fromCharCode(b)).join('');
+   const base64=btoa(binary);
+   const shared=window.EfectoDevice.sharePdf(base64,r.filename);
+   if(!shared)throw new Error('Android no pudo preparar el archivo PDF para compartir.');
+   $('catalog_msg').textContent='¡PDF preparado! Elegí WhatsApp en la ventana que se abrió y enviá el documento al cliente. '+r.count+' productos incluidos.';
   }catch(e){
-   $('catalog_msg').textContent='No se pudo preparar el catálogo: '+(e.message||e);
+   $('catalog_msg').textContent='No se pudo compartir el catálogo PDF: '+(e.message||e);
   }finally{btn.disabled=false}
  };
 }
