@@ -101,7 +101,37 @@ async function catalogPanel(){
   const pages=doc.getNumberOfPages();for(let n=1;n<=pages;n++){doc.setPage(n);doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(90,110,125);doc.text('Efecto Limpio · A-J Distribuciones · WhatsApp 3765-149583',12,289);doc.text('Página '+n+' de '+pages,198,289,{align:'right'})}
   const stamp=new Date().toISOString().replace(/[:.]/g,'-');return {blob:doc.output('blob'),filename:'catalogo-efecto-limpio-'+stamp+'.pdf',title,count:products.length};
  }
- $('catalog_share').onclick=async()=>{const btn=$('catalog_share');btn.disabled=true;try{const r=await buildPdf();const file=new File([r.blob],r.filename,{type:'application/pdf'});if(window.EfectoNative?.sharePdf||window.EfectoDevice?.sharePdf){const bridge=window.EfectoNative||window.EfectoDevice;const b64=await new Promise((ok,no)=>{const fr=new FileReader();fr.onload=()=>ok(String(fr.result).split(',')[1]);fr.onerror=no;fr.readAsDataURL(r.blob)});if(!bridge.sharePdf(b64,r.filename))throw new Error('Android no pudo preparar el archivo para compartir.');$('catalog_msg').textContent='Catálogo actualizado: '+r.count+' productos activos incluidos. Elegí WhatsApp para enviarlo.';}else if(navigator.share&&navigator.canShare?.({files:[file]})){await navigator.share({files:[file],title:r.title,text:'Catálogo de Efecto Limpio'});$('catalog_msg').textContent='Catálogo actualizado: '+r.count+' productos activos incluidos. Elegí WhatsApp para enviar el PDF.';}else{throw new Error('Este navegador no permite compartir archivos PDF. Abrí el panel desde un Android compatible.');}}catch(e){$('catalog_msg').textContent='No se pudo compartir: '+(e.message||e)}finally{btn.disabled=false}};
+ let catalogShareUrl=null,catalogPdfBlob=null,catalogPdfName=null;
+ $('catalog_share').onclick=async()=>{
+  const btn=$('catalog_share');
+  if(catalogShareUrl){
+   const text='Te comparto el catálogo actualizado de Efecto Limpio. Podés ver y descargar el PDF desde este enlace: '+catalogShareUrl;
+   window.location.href='https://wa.me/?text='+encodeURIComponent(text);
+   return;
+  }
+  btn.disabled=true;
+  try{
+   const r=await buildPdf();
+   catalogPdfBlob=r.blob;catalogPdfName=r.filename;
+   $('catalog_msg').textContent='Subiendo el catálogo para generar un enlace seguro…';
+   const path=me.id+'/catalogo-actual.pdf';
+   const {error:uploadError}=await db.storage.from('efecto-catalogos-pdf').upload(path,r.blob,{contentType:'application/pdf',upsert:true,cacheControl:'300'});
+   if(uploadError)throw new Error('No se pudo publicar el PDF: '+uploadError.message);
+   const {data}=db.storage.from('efecto-catalogos-pdf').getPublicUrl(path);
+   catalogShareUrl=data?.publicUrl;
+   if(!catalogShareUrl)throw new Error('No se pudo obtener el enlace del catálogo.');
+   btn.textContent='Enviar catálogo por WhatsApp';
+   $('catalog_msg').textContent='¡Catálogo listo! '+r.count+' productos incluidos. Tocá “Enviar catálogo por WhatsApp” para compartir el enlace. También podés descargar el PDF.';
+   const download=document.createElement('a');download.href=URL.createObjectURL(catalogPdfBlob);download.download=catalogPdfName;download.textContent='Descargar PDF';download.style='display:inline-block;margin-top:10px;padding:10px 14px;border-radius:10px;background:#e7f1f6;color:#14506b;font-weight:800;text-decoration:none';download.id='catalog_download';
+   const oldDownload=$('catalog_download');if(oldDownload)oldDownload.remove();$('catalog_msg').after(download);
+  }catch(e){
+   $('catalog_msg').textContent='No se pudo preparar el catálogo: '+(e.message||e);
+   if(catalogPdfBlob){
+    const download=document.createElement('a');download.href=URL.createObjectURL(catalogPdfBlob);download.download=catalogPdfName||'catalogo-efecto-limpio.pdf';download.textContent='Descargar PDF';download.style='display:inline-block;margin-top:10px;padding:10px 14px;border-radius:10px;background:#e7f1f6;color:#14506b;font-weight:800;text-decoration:none';download.id='catalog_download';
+    const oldDownload=$('catalog_download');if(oldDownload)oldDownload.remove();$('catalog_msg').after(download);
+   }
+  }finally{btn.disabled=false}
+ };
 }
 async function show(tab){nav(tab);if(tab==='catalog'){await catalogPanel();return}if(tab==='home'){const [o,cm]=await Promise.all([db.from('orders').select('id,status,total',{count:'exact'}).is('deleted_at',null),db.from('vendor_commissions').select('commission_amount,paid_at,voided_at')]);const open=(o.data||[]).filter(x=>x.status==='pending').length;const earned=(cm.data||[]).filter(x=>!x.voided_at).reduce((a,x)=>a+Number(x.commission_amount||0),0);view.innerHTML='<h2 class="h">Resumen de ventas</h2><p class="muted">Tu actividad y tus resultados.</p><div class="metricgrid"><div class="metric"><b>'+customers.length+'</b><span>Clientes propios</span></div><div class="metric"><b>'+products.length+'</b><span>Productos activos</span></div><div class="metric"><b>'+open+'</b><span>Pedidos pendientes</span></div><div class="metric"><b>'+money(earned)+'</b><span>Comisiones generadas</span></div></div><button id="quick" class="wide">＋ Registrar un pedido</button>'; $('quick').onclick=()=>show('neworder');return}
 if(tab==='products'){await loadBase();view.innerHTML='<h2 class="h">Lista de productos</h2><p class="muted">Consultá los dos precios vigentes. El mayorista se aplica automáticamente cuando el pedido alcanza $300.000 a precio minorista.</p>'+products.map(p=>'<div class="product">'+(p.image_url?'<img src="'+esc(p.image_url)+'" alt="'+esc(p.name)+'" loading="lazy" style="width:76px;height:76px;object-fit:contain;background:#fff;border:1px solid #dceaf1;border-radius:10px;padding:4px;flex-shrink:0">':'')+'<div style="flex:1;min-width:0"><b>'+esc(p.name)+'</b><span class="muted">'+esc(p.description||p.unit||'')+'</span><div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:7px"><span style="font-size:13px;color:#075985;font-weight:800">Minorista: '+money(p.retail_price??p.price)+'</span><span style="font-size:13px;color:#08734b;font-weight:900">Mayorista: '+money(p.wholesale_price)+'</span></div></div></div>').join('')||'<p class="muted">No hay productos activos.</p>';return}
