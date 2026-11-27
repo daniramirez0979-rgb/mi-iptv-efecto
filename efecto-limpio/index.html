@@ -204,10 +204,10 @@ async function backupPanel(){
 async function catalogPanel(){
  document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab==='catalog'));
  view.onclick=null;
- view.innerHTML='<h2 class="h">Catálogo</h2><button id="catalog_share" class="wide">Enviar por WhatsApp</button><p id="catalog_msg" class="notice"></p>';
+ view.innerHTML='<h2 class="h">Catálogo actualizado</h2><p class="muted">Cada vez que generás el PDF, se consultan los productos activos de la base de datos en ese momento.</p><button id="catalog_share" class="wide">Actualizar y generar catálogo PDF</button><p id="catalog_msg" class="notice"></p>';
  async function buildPdf(){
   const msg=$('catalog_msg');msg.textContent='Cargando productos y preparando el catálogo…';
-  const {data:products,error}=await db.from('products').select('id,name,description,unit,price,retail_price,wholesale_price,image_url,active').eq('active',true).order('sort_order',{ascending:true});
+  const {data:products,error}=await db.from('products').select('id,name,description,unit,price,retail_price,wholesale_price,image_url,active',{count:'exact'}).eq('active',true).order('sort_order',{ascending:true}).limit(500);
   if(error)throw new Error(error.message);
   if(!products?.length)throw new Error('El catálogo no tiene productos activos. Revisá la sección Productos.');
   if(!window.jspdf?.jsPDF){await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='/mi-iptv-efecto/efecto-limpio/vendor/jspdf.umd.min.js?v=3';s.onload=resolve;s.onerror=()=>reject(new Error('No se pudo cargar el generador PDF.'));document.head.appendChild(s)});}
@@ -218,7 +218,7 @@ async function catalogPanel(){
   let y=header(1),page=1;
   for(let i=0;i<products.length;i++){if(y+41>280){page++;y=header(page)}const p=products[i];doc.setFillColor(i%2?255:242,i%2?255:250,i%2?255:255);doc.roundedRect(12,y,186,39,2,2,'F');const img=images[i];if(img)try{doc.addImage(img,String(img).includes('image/png')?'PNG':'JPEG',15,y+3,30,30,undefined,'FAST')}catch(_){}const x=50;doc.setTextColor(21,53,74);doc.setFont('helvetica','bold');doc.setFontSize(10);doc.text(String(p.name||'Producto').slice(0,55),x,y+7);doc.setFont('helvetica','normal');doc.setFontSize(8);const detail=[p.unit,p.description].filter(Boolean).join(' · ');if(detail)doc.text(doc.splitTextToSize(detail,138).slice(0,2),x,y+13);doc.setFont('helvetica','bold');doc.setFontSize(8.5);doc.setTextColor(7,89,133);doc.text('Minorista: '+money(p.retail_price??p.price),x,y+27);doc.setTextColor(8,115,75);doc.text('Mayorista: '+money(p.wholesale_price),x,y+34);y+=41}
   const pages=doc.getNumberOfPages();for(let n=1;n<=pages;n++){doc.setPage(n);doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(90,110,125);doc.text('Efecto Limpio · A-J Distribuciones · WhatsApp 3765-149583',12,289);doc.text('Página '+n+' de '+pages,198,289,{align:'right'})}
-  return {blob:doc.output('blob'),doc,filename:'catalogo-efecto-limpio.pdf',title};
+  const stamp=new Date().toISOString().replace(/[:.]/g,'-');return {blob:doc.output('blob'),doc,filename:'catalogo-efecto-limpio-'+stamp+'.pdf',title,count:products.length};
  }
  $('catalog_share').onclick=async()=>{
   const btn=$('catalog_share'),msg=$('catalog_msg');
@@ -230,13 +230,13 @@ async function catalogPanel(){
    if(nativeBridge?.sharePdf){
     const b64=await new Promise((ok,no)=>{const fr=new FileReader();fr.onload=()=>ok(String(fr.result).split(',')[1]);fr.onerror=no;fr.readAsDataURL(r.blob)});
     if(!nativeBridge.sharePdf(b64,r.filename))throw new Error('Android no pudo preparar el archivo para compartir.');
-    msg.textContent='Catálogo listo como PDF. Elegí WhatsApp en la ventana para compartir.';
+    msg.textContent='Catálogo actualizado: '+r.count+' productos activos incluidos. Elegí WhatsApp para compartir el PDF.';
    }else if(navigator.share&&navigator.canShare?.({files:[file]})){
     await navigator.share({files:[file],title:r.title,text:'Catálogo de Efecto Limpio'});
-    msg.textContent='Elegí WhatsApp para enviar el catálogo adjunto.';
+    msg.textContent='Catálogo actualizado: '+r.count+' productos activos incluidos. Elegí WhatsApp para enviar el PDF.';
    }else{
     r.doc.save(r.filename);
-    msg.textContent='Se preparó el PDF. Si el teléfono lo guarda, abrí Descargas y adjuntá catalogo-efecto-limpio.pdf en WhatsApp. La APK 1.0.3 no permite abrir directamente la ventana nativa de compartir.';
+    msg.textContent='Catálogo actualizado: '+r.count+' productos activos incluidos. El PDF se descargó con nombre nuevo.';
    }
   }catch(e){msg.textContent='No se pudo generar o compartir el PDF: '+(e.message||e)}
   finally{btn.disabled=false}
