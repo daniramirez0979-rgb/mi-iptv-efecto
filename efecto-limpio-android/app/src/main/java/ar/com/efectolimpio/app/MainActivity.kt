@@ -3,6 +3,8 @@ package ar.com.efectolimpio.app
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.graphics.Color
+import android.net.Uri
+import android.content.Intent
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
@@ -12,6 +14,8 @@ import android.graphics.Typeface
 
 class MainActivity : Activity() {
     private lateinit var webView: WebView
+    private var filePathCallback: ValueCallback<Array<Uri>>? = null
+    private val fileChooserRequestCode = 7101
     private lateinit var status: LinearLayout
     private lateinit var message: TextView
     private lateinit var retry: Button
@@ -31,7 +35,26 @@ class MainActivity : Activity() {
         webView.settings.loadsImagesAutomatically = true
         webView.settings.cacheMode = WebSettings.LOAD_NO_CACHE
         webView.clearCache(true)
-        webView.webChromeClient = WebChromeClient()
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onShowFileChooser(
+                view: WebView,
+                filePathCallback: ValueCallback<Array<Uri>>,
+                fileChooserParams: FileChooserParams
+            ): Boolean {
+                this@MainActivity.filePathCallback?.onReceiveValue(null)
+                this@MainActivity.filePathCallback = filePathCallback
+                return try {
+                    val intent = fileChooserParams.createIntent()
+                    startActivityForResult(intent, fileChooserRequestCode)
+                    true
+                } catch (e: Exception) {
+                    this@MainActivity.filePathCallback?.onReceiveValue(null)
+                    this@MainActivity.filePathCallback = null
+                    Toast.makeText(this@MainActivity, "No se pudo abrir la galería. Revisá que tengas una aplicación para seleccionar fotos.", Toast.LENGTH_LONG).show()
+                    false
+                }
+            }
+        }
         status = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; setPadding(32,32,32,32); setBackgroundColor(Color.rgb(239,249,255)) }
         val brand = TextView(this).apply { text = "EFECTO LIMPIO"; textSize = 27f; setTextColor(Color.rgb(5,65,125)); typeface = Typeface.create("sans-serif",Typeface.BOLD_ITALIC); gravity = Gravity.CENTER }
         message = TextView(this).apply { text = "Abriendo el panel de administración…"; textSize = 16f; setTextColor(Color.rgb(30,75,100)); gravity = Gravity.CENTER; setPadding(0,18,0,18) }
@@ -56,7 +79,19 @@ class MainActivity : Activity() {
     private fun showLoading() { status.visibility=View.VISIBLE; message.text="Abriendo el panel de administración…"; retry.visibility=View.GONE }
     private fun showFailure(text:String) { status.visibility=View.VISIBLE; message.text=text; retry.visibility=View.VISIBLE }
     @Deprecated("Deprecated in Android API; retained for compatibility")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (requestCode == fileChooserRequestCode) {
+            val callback = filePathCallback
+            filePathCallback = null
+            callback?.onReceiveValue(
+                if (resultCode == Activity.RESULT_OK) WebChromeClient.FileChooserParams.parseResult(resultCode, data) else null
+            )
+            return
+        }
+        super.onActivityResult(requestCode, resultCode, data)
+    }
+    @Deprecated("Deprecated in Android API; retained for compatibility")
     override fun onBackPressed() { if (::webView.isInitialized && webView.canGoBack()) webView.goBack() else super.onBackPressed() }
     override fun onSaveInstanceState(outState:Bundle) { if (::webView.isInitialized) webView.saveState(outState); super.onSaveInstanceState(outState) }
-    override fun onDestroy() { if (::webView.isInitialized) webView.destroy(); super.onDestroy() }
+    override fun onDestroy() { filePathCallback?.onReceiveValue(null); filePathCallback = null; if (::webView.isInitialized) webView.destroy(); super.onDestroy() }
 }
