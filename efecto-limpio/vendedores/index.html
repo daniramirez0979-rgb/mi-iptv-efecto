@@ -8,7 +8,7 @@
 <section id="login" class="card login"><div class="loginbrand"><img src="/mi-iptv-efecto/efecto-limpio/efecto-limpio-logo.jpg?v=1" alt="Logo original Efecto Limpio"><div class="loginbrand-title">EFECTO LIMPIO</div><div class="loginbrand-sub">Aplicación de vendedores · A-J Distribuciones</div><div class="loginbrand-contact">Pedidos y consultas · WhatsApp 3765-149583</div></div><h1 class="h">Ingreso de vendedores</h1><p class="muted">Ingresá con el correo y la contraseña que te asignó la administración.</p><label>Correo electrónico</label><input id="email" type="email" autocomplete="username" placeholder="tu correo"><label>Contraseña</label><input id="password" type="password" autocomplete="current-password" placeholder="Tu contraseña"><button id="send" class="wide">Ingresar</button><button id="recover" class="wide secondary">Recuperar contraseña</button><p id="loginmsg" class="notice"></p></section>
 <section id="deviceWait" class="card login hidden"><h1 class="h">📱 Vinculación de dispositivo</h1><p id="deviceWaitText" class="muted">Tu teléfono está esperando autorización del administrador.</p><p class="muted">La cuenta de vendedor funciona en un solo teléfono autorizado. No cierres ni borres los datos de la aplicación.</p><button id="deviceRefresh" class="wide">Actualizar estado</button><button id="deviceLogout" class="wide secondary">Cerrar sesión</button></section>
 <section id="app" class="hidden"><div class="brandcard"><img src="/mi-iptv-efecto/efecto-limpio/efecto-limpio-logo.jpg?v=1" alt="Logo original Efecto Limpio" style="display:block;width:76px;height:76px;object-fit:contain;margin:0 auto"><div class="tag">Tu herramienta de ventas</div></div><div class="card"><div class="row"><div><b id="welcome">Hola, vendedor</b><div class="muted">A-J Distribuciones</div></div><button id="logout" class="secondary">Salir</button></div></div>
-<nav class="nav"><button class="on" data-tab="home">Inicio</button><button data-tab="products">Productos</button><button data-tab="catalog">Catálogo PDF</button><button data-tab="customers">Mis clientes</button><button data-tab="neworder">Nuevo pedido</button><button data-tab="orders">Mis pedidos</button><button data-tab="commissions">Comisiones</button></nav><section id="view" class="card"></section></section>
+<nav class="nav"><button class="on" data-tab="home">Inicio</button><button data-tab="products">Productos</button><button data-tab="catalog">Compartir catálogo</button><button data-tab="customers">Mis clientes</button><button data-tab="neworder">Nuevo pedido</button><button data-tab="orders">Mis pedidos</button><button data-tab="commissions">Comisiones</button></nav><section id="view" class="card"></section></section>
 <div class="foot">Efecto Limpio · A-J Distribuciones · WhatsApp 3765-149583</div></main>
 <script type="module">
 import {createClient} from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
@@ -85,93 +85,24 @@ function nav(tab){document.querySelectorAll('[data-tab]').forEach(b=>b.classList
 async function catalogPanel(){
  document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab==='catalog'));
  view.onclick=null;
- view.innerHTML='<h2 class="h">Catálogo y listas de precios</h2><p class="muted">Generá un PDF actualizado con los productos, las fotos y los precios guardados en Efecto Limpio. Podés descargarlo o compartirlo desde el celular.</p><div class="formgrid"><div class="full"><label>Qué documento querés generar</label><select id="catalog_kind"><option value="catalog">Catálogo completo · fotos + minorista y mayorista</option><option value="retail">Lista de precios minorista</option><option value="wholesale">Lista de precios mayorista</option></select></div><div class="full"><label>Nombre del documento (opcional)</label><input id="catalog_title" placeholder="Ej.: Lista de precios noviembre 2026"></div></div><div class="row" style="margin-top:16px"><button id="catalog_download">Generar y descargar PDF</button><button id="catalog_share" class="secondary">Compartir PDF por WhatsApp</button></div><p id="catalog_msg" class="notice"></p><p class="muted">El PDF usa los precios y las fotografías vigentes de la base central. Compartir abre el menú del teléfono; elegí WhatsApp y el contacto.</p>';
- const loadProducts=async()=>{
-  const {data,error}=await db.from('products').select('id,name,description,unit,price,retail_price,wholesale_price,image_url,active').eq('active',true).order('sort_order',{ascending:true});
+ view.innerHTML='<h2 class="h">Compartir catálogo</h2><p class="muted">Se prepara el catálogo actualizado con los productos activos, sus fotos y los precios de Efecto Limpio.</p><button id="catalog_share" class="wide">Compartir por WhatsApp</button><p id="catalog_msg" class="notice"></p>';
+ async function buildPdf(){
+  const msg=$('catalog_msg');msg.textContent='Cargando productos y preparando el catálogo…';
+  const {data:products,error}=await db.from('products').select('id,name,description,unit,price,retail_price,wholesale_price,image_url,active').eq('active',true).order('sort_order',{ascending:true});
   if(error)throw new Error(error.message);
-  if(!data?.length)throw new Error('No hay productos activos para incluir en el PDF.');
-  return data;
- };
- const buildPdf=async()=>{
-  const msgEl=$('catalog_msg');msgEl.textContent='Preparando productos, fotos y PDF…';
-  const [products]=await Promise.all([loadProducts()]);
-  if(!window.jspdf?.jsPDF){
-
-   await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='/mi-iptv-efecto/efecto-limpio/vendor/jspdf.umd.min.js?v=2';s.onload=resolve;s.onerror=()=>reject(new Error('No se pudo cargar el generador PDF local.'));document.head.appendChild(s)});
-
-  }
-  const {jsPDF}=window.jspdf;const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
-  const kind=$('catalog_kind').value;
-  const title=$('catalog_title').value.trim()||(kind==='catalog'?'Catálogo de productos':kind==='retail'?'Lista de precios minorista':'Lista de precios mayorista');
-  const date=new Date().toLocaleDateString('es-AR');
-  const logoPath='/mi-iptv-efecto/efecto-limpio/efecto-limpio-logo.jpg';
-  async function imageData(url){
-   if(!url)return null;
-   try{const response=await fetch(url,{mode:'cors'});if(!response.ok)return null;const blob=await response.blob();return await new Promise(resolve=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>resolve(null);r.readAsDataURL(blob)})}catch(_){return null}
-  }
-  const logo=await imageData(logoPath);
-  const images=await Promise.all(products.map(p=>imageData(p.image_url)));
-  const W=210,H=297,blue=[7,89,133],light=[231,247,255];
-  function header(page){
-   if(page>1)doc.addPage();
-   doc.setFillColor(6,65,130);doc.rect(0,0,W,34,'F');
-   if(logo)try{doc.addImage(logo,'JPEG',12,5,43,20)}catch(_){}
-   doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(16);doc.text('EFECTO LIMPIO',60,14);
-   doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.text('A-J Distribuciones · WhatsApp 3765-149583',60,21);
-   doc.setFont('helvetica','bold');doc.setFontSize(13);doc.text(title,12,44);
-   doc.setFont('helvetica','normal');doc.setFontSize(8);doc.text('Precios vigentes · '+date,12,50);
-   doc.setDrawColor(7,137,190);doc.line(12,54,198,54);
-   return 60;
-  }
+  if(!products?.length)throw new Error('El catálogo no tiene productos activos. Revisá la sección Productos.');
+  if(!window.jspdf?.jsPDF){await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='/mi-iptv-efecto/efecto-limpio/vendor/jspdf.umd.min.js?v=3';s.onload=resolve;s.onerror=()=>reject(new Error('No se pudo cargar el generador PDF.'));document.head.appendChild(s)});}
+  const {jsPDF}=window.jspdf,doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'}),title='Catálogo de productos Efecto Limpio',date=new Date().toLocaleDateString('es-AR');
+  async function imageData(url){if(!url)return null;try{const r=await fetch(url,{mode:'cors'});if(!r.ok)return null;const b=await r.blob();return await new Promise(ok=>{const fr=new FileReader();fr.onload=()=>ok(fr.result);fr.onerror=()=>ok(null);fr.readAsDataURL(b)})}catch(_){return null}}
+  const logo=await imageData('/mi-iptv-efecto/efecto-limpio/efecto-limpio-logo.jpg'),images=await Promise.all(products.map(p=>imageData(p.image_url)));
+  const W=210;function header(page){if(page>1)doc.addPage();doc.setFillColor(6,65,130);doc.rect(0,0,W,34,'F');if(logo)try{doc.addImage(logo,'JPEG',12,5,43,20)}catch(_){}doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(16);doc.text('EFECTO LIMPIO',60,14);doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.text('A-J Distribuciones · WhatsApp 3765-149583',60,21);doc.setFont('helvetica','bold');doc.setFontSize(13);doc.text(title,12,44);doc.setFont('helvetica','normal');doc.setFontSize(8);doc.text('Precios vigentes · '+date,12,50);doc.setDrawColor(7,137,190);doc.line(12,54,198,54);return 60}
   let y=header(1),page=1;
-  const isCatalog=kind==='catalog';
-  const rowH=isCatalog?43:18;
-  for(let i=0;i<products.length;i++){
-   if(y+rowH>280){page++;y=header(page)}
-   const p=products[i];doc.setFillColor(i%2?255:242,i%2?255:250,i%2?255:255);doc.roundedRect(12,y,186,rowH-2,2,2,'F');
-   let textX=16;
-   if(isCatalog){const img=images[i];if(img){try{const fmt=String(img).includes('image/png')?'PNG':'JPEG';doc.addImage(img,fmt,15,y+3,30,30,undefined,'FAST')}catch(_){}}textX=50}
-   doc.setTextColor(21,53,74);doc.setFont('helvetica','bold');doc.setFontSize(isCatalog?10:9.5);doc.text(String(p.name||'Producto').slice(0,55),textX,y+7);
-   doc.setFont('helvetica','normal');doc.setFontSize(8);const detail=[p.unit,p.description].filter(Boolean).join(' · ');if(detail)doc.text(doc.splitTextToSize(detail, isCatalog?138:170).slice(0,2),textX,y+13);
-   if(kind==='catalog'){
-    doc.setFont('helvetica','bold');doc.setFontSize(8.5);doc.setTextColor(...blue);doc.text('Minorista: '+money(p.retail_price??p.price),textX,y+27);
-    doc.setTextColor(8,115,75);doc.text('Mayorista: '+money(p.wholesale_price),textX,y+34);
-   }else{
-    const val=kind==='retail'?(p.retail_price??p.price):p.wholesale_price;
-    doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(...blue);doc.text(money(val),textX,y+12);
-   }
-   y+=rowH;
-  }
-  const pages=doc.getNumberOfPages();
-  for(let n=1;n<=pages;n++){doc.setPage(n);doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(90,110,125);doc.text('Efecto Limpio · A-J Distribuciones · WhatsApp 3765-149583',12,289);doc.text('Página '+n+' de '+pages,198,289,{align:'right'})}
-  const safe=title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'efecto-limpio';
-  return {blob:doc.output('blob'),filename:safe+'.pdf',title};
- };
- async function run(mode){
-  const btn=$(mode==='share'?'catalog_share':'catalog_download');btn.disabled=true;
-  try{
-   const result=await buildPdf();
-   if(mode==='share'){
-    const file=new File([result.blob],result.filename,{type:'application/pdf'});
-    if(navigator.share&&navigator.canShare?.({files:[file]})){
-     await navigator.share({files:[file],title:result.title,text:'Lista de productos Efecto Limpio'});
-     $('catalog_msg').textContent='PDF preparado para compartir. Elegí WhatsApp en el menú del teléfono.';
-    }else{
-     const url=URL.createObjectURL(result.blob);const a=document.createElement('a');a.href=url;a.download=result.filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);
-     window.open('https://wa.me/?text='+encodeURIComponent('Te comparto '+result.title+' de Efecto Limpio. Adjuntá el PDF que acabás de descargar.'),'_blank');
-     $('catalog_msg').textContent='El teléfono no permite adjuntar el PDF directamente desde esta aplicación. Se descargó el archivo; abrí WhatsApp y adjuntalo al chat.';
-    }
-   }else{
-    const url=URL.createObjectURL(result.blob);const a=document.createElement('a');a.href=url;a.download=result.filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);
-    $('catalog_msg').textContent='PDF generado y descargado correctamente.';
-   }
-  }catch(err){$('catalog_msg').textContent='No se pudo generar el PDF: '+err.message}
-  btn.disabled=false;
+  for(let i=0;i<products.length;i++){if(y+41>280){page++;y=header(page)}const p=products[i];doc.setFillColor(i%2?255:242,i%2?255:250,i%2?255:255);doc.roundedRect(12,y,186,39,2,2,'F');const img=images[i];if(img)try{doc.addImage(img,String(img).includes('image/png')?'PNG':'JPEG',15,y+3,30,30,undefined,'FAST')}catch(_){}const x=50;doc.setTextColor(21,53,74);doc.setFont('helvetica','bold');doc.setFontSize(10);doc.text(String(p.name||'Producto').slice(0,55),x,y+7);doc.setFont('helvetica','normal');doc.setFontSize(8);const detail=[p.unit,p.description].filter(Boolean).join(' · ');if(detail)doc.text(doc.splitTextToSize(detail,138).slice(0,2),x,y+13);doc.setFont('helvetica','bold');doc.setFontSize(8.5);doc.setTextColor(7,89,133);doc.text('Minorista: '+money(p.retail_price??p.price),x,y+27);doc.setTextColor(8,115,75);doc.text('Mayorista: '+money(p.wholesale_price),x,y+34);y+=41}
+  const pages=doc.getNumberOfPages();for(let n=1;n<=pages;n++){doc.setPage(n);doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(90,110,125);doc.text('Efecto Limpio · A-J Distribuciones · WhatsApp 3765-149583',12,289);doc.text('Página '+n+' de '+pages,198,289,{align:'right'})}
+  return {blob:doc.output('blob'),filename:'catalogo-efecto-limpio.pdf',title};
  }
- $('catalog_download').onclick=()=>run('download');
- $('catalog_share').onclick=()=>run('share');
+ $('catalog_share').onclick=async()=>{const btn=$('catalog_share');btn.disabled=true;try{const r=await buildPdf();const file=new File([r.blob],r.filename,{type:'application/pdf'});if(window.EfectoNative?.sharePdf||window.EfectoDevice?.sharePdf){const bridge=window.EfectoNative||window.EfectoDevice;const b64=await new Promise((ok,no)=>{const fr=new FileReader();fr.onload=()=>ok(String(fr.result).split(',')[1]);fr.onerror=no;fr.readAsDataURL(r.blob)});if(!bridge.sharePdf(b64,r.filename))throw new Error('Android no pudo preparar el archivo para compartir.');$('catalog_msg').textContent='Catálogo adjuntado. Elegí WhatsApp para enviarlo.';}else if(navigator.share&&navigator.canShare?.({files:[file]})){await navigator.share({files:[file],title:r.title,text:'Catálogo de Efecto Limpio'});$('catalog_msg').textContent='Elegí WhatsApp para enviar el catálogo adjunto.';}else{throw new Error('Este navegador no permite compartir archivos PDF. Abrí el panel desde un Android compatible.');}}catch(e){$('catalog_msg').textContent='No se pudo compartir: '+(e.message||e)}finally{btn.disabled=false}};
 }
-
 async function show(tab){nav(tab);if(tab==='catalog'){await catalogPanel();return}if(tab==='home'){const [o,cm]=await Promise.all([db.from('orders').select('id,status,total',{count:'exact'}).is('deleted_at',null),db.from('vendor_commissions').select('commission_amount,paid_at,voided_at')]);const open=(o.data||[]).filter(x=>x.status==='pending').length;const earned=(cm.data||[]).filter(x=>!x.voided_at).reduce((a,x)=>a+Number(x.commission_amount||0),0);view.innerHTML='<h2 class="h">Resumen de ventas</h2><p class="muted">Tu actividad y tus resultados.</p><div class="metricgrid"><div class="metric"><b>'+customers.length+'</b><span>Clientes propios</span></div><div class="metric"><b>'+products.length+'</b><span>Productos activos</span></div><div class="metric"><b>'+open+'</b><span>Pedidos pendientes</span></div><div class="metric"><b>'+money(earned)+'</b><span>Comisiones generadas</span></div></div><button id="quick" class="wide">＋ Registrar un pedido</button>'; $('quick').onclick=()=>show('neworder');return}
 if(tab==='products'){await loadBase();view.innerHTML='<h2 class="h">Lista de productos</h2><p class="muted">Consultá los dos precios vigentes. El mayorista se aplica automáticamente cuando el pedido alcanza $300.000 a precio minorista.</p>'+products.map(p=>'<div class="product">'+(p.image_url?'<img src="'+esc(p.image_url)+'" alt="'+esc(p.name)+'" loading="lazy" style="width:76px;height:76px;object-fit:contain;background:#fff;border:1px solid #dceaf1;border-radius:10px;padding:4px;flex-shrink:0">':'')+'<div style="flex:1;min-width:0"><b>'+esc(p.name)+'</b><span class="muted">'+esc(p.description||p.unit||'')+'</span><div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:7px"><span style="font-size:13px;color:#075985;font-weight:800">Minorista: '+money(p.retail_price??p.price)+'</span><span style="font-size:13px;color:#08734b;font-weight:900">Mayorista: '+money(p.wholesale_price)+'</span></div></div></div>').join('')||'<p class="muted">No hay productos activos.</p>';return}
 if(tab==='customers'){view.innerHTML='<div class="row"><h2 class="h">Mis clientes</h2><button id="addcustomer">＋ Agregar</button></div><div id="customerform" class="hidden"><div class="formgrid"><div><label>Nombre *</label><input id="cname"></div><div><label>Comercio</label><input id="cbiz"></div><div><label>Teléfono</label><input id="cphone"></div><div><label>WhatsApp</label><input id="cwa"></div><div><label>Ciudad</label><input id="ccity"></div><div><label>Dirección</label><input id="caddress"></div><div class="full"><label>Notas</label><textarea id="cnotes" rows="2"></textarea></div></div><button id="savecustomer" class="wide">Guardar cliente</button><p id="cmsg" class="notice"></p></div><div id="customerlist">'+(customers.map(c=>'<div class="product"><div><b>'+esc(c.name)+'</b><span class="muted">'+esc(c.business_name||c.city||c.phone||'')+'</span></div><span class="pill">Mi cliente</span></div>').join('')||'<p class="muted">Todavía no cargaste clientes.</p>')+'</div>'; $('addcustomer').onclick=()=>{$('customerform').classList.toggle('hidden')};$('savecustomer').onclick=async()=>{const name=$('cname').value.trim();if(!name){msg($('cmsg'),'Completá el nombre.',true);return}const {error}=await db.from('customers').insert({name,business_name:$('cbiz').value.trim()||null,phone:$('cphone').value.trim()||null,whatsapp:$('cwa').value.trim()||null,city:$('ccity').value.trim()||null,address:$('caddress').value.trim()||null,notes:$('cnotes').value.trim()||null,created_by:me.id});if(error){msg($('cmsg'),error.message,true);return}await loadBase();await show('customers')};return}
