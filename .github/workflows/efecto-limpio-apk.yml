@@ -26,15 +26,17 @@ jobs:
       - name: Compilar APK administrador y vendedor
         working-directory: efecto-limpio-android
         run: gradle --no-daemon :app:assembleDebug :vendedor:assembleDebug
+      - name: Preparar nombre claro del APK administrador
+        run: cp efecto-limpio-android/app/build/outputs/apk/debug/app-debug.apk efecto-limpio-android/app/build/outputs/apk/debug/APK-Administrador-Efecto-Limpio.apk
       - name: Guardar APK Administrador
         uses: actions/upload-artifact@v4
         with:
-          name: Efecto-Limpio-Administrador
-          path: efecto-limpio-android/app/build/outputs/apk/debug/app-debug.apk
+          name: APK-Administrador-Efecto-Limpio
+          path: efecto-limpio-android/app/build/outputs/apk/debug/APK-Administrador-Efecto-Limpio.apk
           if-no-files-found: error
       - name: Guardar APK Vendedor
         uses: actions/upload-artifact@v4
         with:
-          name: Efecto-Limpio-Vendedor
+          name: APK-Vendedor-Efecto-Limpio
           path: efecto-limpio-android/vendedor/build/outputs/apk/debug/vendedor-debug.apk
           if-no-files-found: error
