@@ -10,9 +10,9 @@
   "theme_color": "#075985",
   "icons": [
     {
-      "src": "/mi-iptv-efecto/efecto-limpio/app-icon.svg?v=14",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/mi-iptv-efecto/efecto-limpio/efecto-logo-icon.jpg?v=13",
+      "sizes": "128x128",
+      "type": "image/jpeg",
       "purpose": "any"
     }
   ]
