@@ -53,7 +53,9 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const money=v=>new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(Number(v||0));
 async function gate(session){if(!session){login.classList.remove('hidden');app.classList.add('hidden');return}const {data:p,error}=await db.from('profiles').select('full_name,role,active,access_status').eq('id',session.user.id).maybeSingle();if(error||!p||p.role!=='admin'||p.active!==true||p.access_status!=='active'){await db.auth.signOut();$('loginmsg').textContent='Este usuario no tiene permisos de administrador activos.';return}currentUser=session.user;login.classList.add('hidden');app.classList.remove('hidden');$('welcome').textContent='Hola, '+(p.full_name||'administrador');await dashboard()}
 async function dashboard(){const tabs=['products','customers','orders','vendor_commissions'];const rs=await Promise.all(tabs.map(t=>{let q=db.from(t).select('*',{count:'exact',head:true});if(t==='orders')q=q.is('deleted_at',null).neq('status','cancelled');if(t==='vendor_commissions')q=q.is('voided_at',null);return q;}));view.innerHTML='<h1 class="h">Resumen general</h1><p class="muted">Administrá tu negocio desde un solo lugar.</p><div class="metrics">'+tabs.map((t,i)=>'<div class="metric"><b>'+(rs[i].count??'—')+'</b><span>'+titles[t]+'</span></div>').join('')+'</div><article style="margin-top:18px;padding:16px;border:1px solid #c5e5f5;background:linear-gradient(135deg,#f2faff,#fff);border-radius:15px"><h2 style="margin:0 0 6px;color:#075985;font-size:18px">Herramientas de corrección</h2><p class="muted" style="margin:0 0 12px">Para corregir ventas o comisiones cargadas por error. Los registros corregidos se excluyen de los totales y del cierre mensual; se conserva la constancia administrativa.</p><div class="row" style="justify-content:flex-start"><button type="button" class="secondary" data-open-tab="orders">Revisar ventas</button><button type="button" class="secondary" data-open-tab="vendor_commissions">Revisar comisiones</button></div></article><p class="muted" style="margin-top:14px">Elegí Productos para actualizar precios o Clientes para cargar compradores.</p>';view.onclick=e=>{const b=e.target.closest('[data-open-tab]');if(b)list(b.dataset.openTab)}}
-async function commissionList(){
+let commissionLimit=200,ordersLimit=200;
+async function commissionList(reset=false){
+  if(reset)commissionLimit=200;
  document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab==='vendor_commissions'));
  view.onclick=null;
  view.innerHTML='<h2 class="h">Comisiones de vendedores</h2><p class="muted">Cada comisión se confirma como pagada únicamente cuando vos registrás el pago.</p><p class="muted">Cargando…</p>';
@@ -78,8 +80,9 @@ async function commissionList(){
   const state=isVoid?'ANULADA':isPaid?'COMISIÓN PAGADA':'PENDIENTE DE PAGO';
   return '<article style="padding:13px;border:1px solid #c7e5f5;background:#f5fbff;border-radius:13px"><div class="row" style="align-items:flex-start"><div style="min-width:0;flex:1"><b style="color:#075985">'+esc(names.get(x.vendor_id)||'Vendedor')+'</b><div class="muted">Venta N.º '+esc(o?.order_number??'—')+' · '+new Date(x.created_at).toLocaleDateString('es-AR')+'</div></div><b style="font-size:12px;color:'+(isPaid?'#166534':isVoid?'#64748b':'#a16207')+'">'+state+'</b></div><div style="display:flex;justify-content:space-between;gap:10px;margin-top:10px"><span>Venta: <b>'+money(x.sale_amount)+'</b></span><span>Comisión ('+esc(x.commission_rate)+'%): <b>'+money(x.commission_amount)+'</b></span></div>'+
   (isVoid?'<p class="muted">Esta comisión fue anulada.'+(x.recovery_required?' Requiere recuperar un importe previamente pagado.':'')+'</p>'+(o&&!o.deleted_at&&o.status!=='completed'?'<button class="remove-cancelled-sale" data-id="'+esc(o.id)+'" style="margin-top:9px;width:100%;background:#fff1f2;color:#9f1239;border:1px solid #fecdd3">🗑 Borrar venta anulada</button>':''):(isPaid?'<p class="muted" style="margin:8px 0 0">Pagada el '+new Date(x.paid_at).toLocaleString('es-AR')+'. Confirmada por administración.</p>':o?.status==='completed'?'<button class="commission-pay" data-id="'+esc(x.id)+'" style="margin-top:11px;width:100%">✓ Comisión de esta venta pagada</button>':'<p class="muted">Se habilita cuando la venta esté completada.</p>')+(o?.status==='completed'&&o?.customer_paid===true?'':'<button class="commission-void" data-id="'+esc(x.id)+'" style="margin-top:8px;width:100%;background:#fff1f2;color:#9f1239;border:1px solid #fecdd3">🗑 Anular comisión de prueba / error</button>'))+'</article>';
- }).join('')+'</div>':'<p class="muted">Todavía no hay comisiones registradas.</p>')+'<p class="muted">Se muestran hasta 200 comisiones.</p>';
- $('refreshcomm').onclick=()=>commissionList();
+ }).join('')+'</div>':'<p class="muted">Todavía no hay comisiones registradas.</p>')+'<p class="muted">Mostrando '+rows.length+' comisiones'+(allRows.length===commissionLimit?' (puede haber más).':' (todas las disponibles).')+'</p>'+(allRows.length===commissionLimit?'<button class="secondary" id="morecomm" style="width:100%;margin-top:10px">Ver 200 comisiones más</button>':'');
+ $('refreshcomm').onclick=()=>commissionList(true);
+  if($('morecomm'))$('morecomm').onclick=()=>{commissionLimit+=200;commissionList();};
  view.onclick=async e=>{
   const removeSale=e.target.closest('.remove-cancelled-sale');
   if(removeSale){
@@ -111,7 +114,8 @@ async function commissionList(){
   await commissionList();
  };
 }
-async function ordersList(){
+async function ordersList(reset=false){
+  if(reset)ordersLimit=200;
  document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab==='orders'));
  view.onclick=null;
  view.innerHTML='<h2 class="h">Ventas</h2><p class="muted">Cuando entregues el pedido y cobres al cliente, confirmalo acá. En ese momento se genera la comisión del vendedor.</p><p class="muted">Cargando…</p>';
@@ -134,8 +138,9 @@ async function ordersList(){
   const statusLabel=({draft:'Borrador',pending:'Pendiente',approved:'Aprobada',modified:'Modificada',rejected:'Rechazada',completed:'Completada · cobrada y entregada',cancel_requested:'Cancelación solicitada',cancelled:'Cancelada'})[x.status]||x.status;
   return '<article style="padding:13px;border:1px solid #c7e5f5;background:#f5fbff;border-radius:13px"><div class="row" style="align-items:flex-start"><div style="min-width:0;flex:1"><b style="color:#075985">Venta N.º '+esc(x.order_number)+'</b><div class="muted">'+new Date(x.created_at).toLocaleString('es-AR')+'</div></div><b style="font-size:12px">'+esc(statusLabel)+'</b></div><div style="margin-top:8px"><b>'+esc(vendors.get(x.vendor_id)||'Venta de administración')+'</b><div class="muted">'+esc(customersMap.get(x.customer_id)||(x.customer_id?'Cliente':'Venta fuera de cliente'))+'</div></div><div class="row" style="margin-top:10px"><span>'+(x.is_wholesale?'MAYORISTA':'MINORISTA')+'</span><b style="font-size:18px">'+money(x.total)+'</b></div>'+
   (x.status==='completed'?'<p class="muted" style="margin:8px 0 0">Cliente: '+(x.customer_paid?'Cobrado':'Revisar cobro')+' · Entrega confirmada.</p>':canComplete?'<button class="complete-order" data-id="'+esc(x.id)+'" style="width:100%;margin-top:11px">✓ Cobrado y entregado · generar comisión</button>':'')+'</article>';
- }).join('')+'</div>':'<p class="muted">Todavía no hay ventas registradas.</p>')+'<p class="muted">Se muestran hasta 200 ventas.</p>';
- $('refreshorders').onclick=()=>ordersList();
+ }).join('')+'</div>':'<p class="muted">Todavía no hay ventas registradas.</p>')+'<p class="muted">Mostrando '+rows.length+' ventas'+(rows.length===ordersLimit?' (puede haber más).':' (todas las disponibles).')+'</p>'+(rows.length===ordersLimit?'<button class="secondary" id="moreorders" style="width:100%;margin-top:10px">Ver 200 ventas más</button>':'');
+ $('refreshorders').onclick=()=>ordersList(true);
+  if($('moreorders'))$('moreorders').onclick=()=>{ordersLimit+=200;ordersList();};
  view.onclick=async e=>{
   const b=e.target.closest('.complete-order');if(!b)return;
   const order=rows.find(x=>x.id===b.dataset.id);if(!order)return;
