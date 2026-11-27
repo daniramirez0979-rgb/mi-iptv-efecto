@@ -242,7 +242,6 @@ async function catalogPanel(){
   finally{btn.disabled=false}
 }
 }
-}
 async function list(tab){
  document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
  if(tab==='home')return dashboard();
