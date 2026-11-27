@@ -133,7 +133,7 @@ async function ordersList(){
   b.disabled=true;
   const {data,error}=await db.rpc('admin_remove_test_order',{p_order_id:b.dataset.id,p_reason:reason.trim()||'Venta de prueba o cargada por error'});
   if(error||!data?.ok){alert('No se pudo quitar la venta: '+(error?.message||data?.message||'Error desconocido'));b.disabled=false;return}
-  alert('Venta de prueba eliminada del historial y comisión anulada. El cierre mensual ya no la contará.');
+  alert(data.recovery_required?'Venta de prueba eliminada y comisión anulada. Como la comisión figuraba pagada, quedó marcada para recuperar ese importe. El cierre mensual ya no la contará.':'Venta de prueba eliminada del historial y comisión anulada. El cierre mensual ya no la contará.');
   await ordersList();
  });
  view.onclick=async e=>{
