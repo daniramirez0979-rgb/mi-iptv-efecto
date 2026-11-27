@@ -220,7 +220,33 @@ async function catalogPanel(){
   const pages=doc.getNumberOfPages();for(let n=1;n<=pages;n++){doc.setPage(n);doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(90,110,125);doc.text('Efecto Limpio · A-J Distribuciones · WhatsApp 3765-149583',12,289);doc.text('Página '+n+' de '+pages,198,289,{align:'right'})}
   return {blob:doc.output('blob'),filename:'catalogo-efecto-limpio.pdf',title};
  }
- $('catalog_share').onclick=async()=>{const btn=$('catalog_share');btn.disabled=true;try{const r=await buildPdf();const file=new File([r.blob],r.filename,{type:'application/pdf'});if(window.EfectoNative?.sharePdf||window.EfectoDevice?.sharePdf){const bridge=window.EfectoNative||window.EfectoDevice;const b64=await new Promise((ok,no)=>{const fr=new FileReader();fr.onload=()=>ok(String(fr.result).split(',')[1]);fr.onerror=no;fr.readAsDataURL(r.blob)});if(!bridge.sharePdf(b64,r.filename))throw new Error('Android no pudo preparar el archivo para compartir.');$('catalog_msg').textContent='Catálogo adjuntado. Elegí WhatsApp para enviarlo.';}else if(navigator.share&&navigator.canShare?.({files:[file]})){await navigator.share({files:[file],title:r.title,text:'Catálogo de Efecto Limpio'});$('catalog_msg').textContent='Elegí WhatsApp para enviar el catálogo adjunto.';}else{throw new Error('Este navegador no permite compartir archivos PDF. Abrí el panel desde un Android compatible.');}}catch(e){$('catalog_msg').textContent='No se pudo compartir: '+(e.message||e)}finally{btn.disabled=false}};
+ $('catalog_share').onclick=async()=>{
+  const btn=$('catalog_share'),msg=$('catalog_msg');
+  const nativeBridge=window.EfectoNative||window.EfectoDevice;
+  const openChrome=()=>{const target=location.href;location.href='https://www.google.com/url?sa=t&url='+encodeURIComponent(target)};
+  btn.disabled=true;
+  try{
+   if(!nativeBridge&&!(navigator.share&&navigator.canShare)){
+    msg.textContent='Abriendo el panel en Chrome para compartir el PDF…';
+    openChrome();
+    return;
+   }
+   const r=await buildPdf();
+   const file=new File([r.blob],r.filename,{type:'application/pdf'});
+   if(nativeBridge?.sharePdf){
+    const b64=await new Promise((ok,no)=>{const fr=new FileReader();fr.onload=()=>ok(String(fr.result).split(',')[1]);fr.onerror=no;fr.readAsDataURL(r.blob)});
+    if(!nativeBridge.sharePdf(b64,r.filename))throw new Error('Android no pudo preparar el archivo para compartir.');
+    msg.textContent='Catálogo adjuntado. Elegí WhatsApp para enviarlo.';
+   }else if(navigator.share&&navigator.canShare?.({files:[file]})){
+    await navigator.share({files:[file],title:r.title,text:'Catálogo de Efecto Limpio'});
+    msg.textContent='Elegí WhatsApp para enviar el catálogo adjunto.';
+   }else{
+    msg.textContent='Abriendo el panel en Chrome para compartir el PDF…';
+    openChrome();
+   }
+  }catch(e){msg.textContent='No se pudo compartir: '+(e.message||e)}
+  finally{btn.disabled=false}
+}
 }
 async function list(tab){
  document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
