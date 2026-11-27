@@ -229,8 +229,13 @@ async function catalogPanel(){
    const file=new File([r.blob],r.filename,{type:'application/pdf'});
    if(nativeBridge?.sharePdf){
     const b64=await new Promise((ok,no)=>{const fr=new FileReader();fr.onload=()=>ok(String(fr.result).split(',')[1]);fr.onerror=no;fr.readAsDataURL(r.blob)});
-    if(!nativeBridge.sharePdf(b64,r.filename))throw new Error('Android no pudo preparar el archivo para compartir.');
-    msg.textContent='Catálogo actualizado: '+r.count+' productos activos incluidos. Elegí WhatsApp para compartir el PDF.';
+    if(nativeBridge.sharePdf(b64,r.filename)){
+     msg.textContent='Catálogo actualizado: '+r.count+' productos activos. Elegí WhatsApp u otra aplicación para compartir el PDF.';
+    }else if(nativeBridge.downloadPdf?.(b64,r.filename)){
+     msg.textContent='Catálogo actualizado: '+r.count+' productos activos. PDF guardado en Descargas.';
+    }else{
+     throw new Error('Android no pudo compartir ni guardar el PDF. Actualizá la aplicación de Administración.');
+    }
    }else if(navigator.share&&navigator.canShare?.({files:[file]})){
     await navigator.share({files:[file],title:r.title,text:'Catálogo de Efecto Limpio'});
     msg.textContent='Catálogo actualizado: '+r.count+' productos activos incluidos. Elegí WhatsApp para enviar el PDF.';
