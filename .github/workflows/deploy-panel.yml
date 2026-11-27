@@ -1,9 +1,10 @@
-name: Publicar panel EFECTO TV
+name: Publicar paneles web
 on:
   push:
     branches: [main]
     paths:
       - "panel/**"
+      - "efecto-limpio/**"
       - ".github/workflows/deploy-panel.yml"
   workflow_dispatch:
 permissions:
@@ -24,10 +25,15 @@ jobs:
         uses: actions/checkout@v6
       - name: Configurar GitHub Pages
         uses: actions/configure-pages@v5
-      - name: Preparar sitio
+      - name: Preparar ambos paneles
+        run: |
+          mkdir -p site/efecto-limpio
+          cp -a panel/. site/
+          cp -a efecto-limpio/. site/efecto-limpio/
+      - name: Subir sitio
         uses: actions/upload-pages-artifact@v4
         with:
-          path: panel
+          path: site
       - name: Publicar
         id: deployment
         uses: actions/deploy-pages@v5.0.1
