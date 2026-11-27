@@ -22,7 +22,7 @@ class MainActivity : Activity() {
     private lateinit var status: LinearLayout
     private lateinit var message: TextView
     private lateinit var retry: Button
-    private val appUrl = "https://daniramirez0979-rgb.github.io/mi-iptv-efecto/efecto-limpio/?appver=20261127-share2"
+    private val appUrl = "https://daniramirez0979-rgb.github.io/mi-iptv-efecto/efecto-limpio/?appver=20261127-share3"
 
     private inner class ShareBridge {
         @JavascriptInterface
@@ -41,7 +41,34 @@ class MainActivity : Activity() {
                 }
                 runOnUiThread { startActivity(Intent.createChooser(send, "Compartir catálogo por WhatsApp")) }
                 true
-            } catch (e: Exception) { false }
+            } catch (e: Exception) {
+                runOnUiThread { Toast.makeText(this@MainActivity, "No se pudo abrir el menú para compartir: ${e.message ?: "error Android"}", Toast.LENGTH_LONG).show() }
+                false
+            }
+        }
+
+        @JavascriptInterface
+        fun downloadPdf(base64: String, filename: String): Boolean {
+            return try {
+                val safeName = filename.replace(Regex("[^A-Za-z0-9._-]"), "-").let { if (it.endsWith(".pdf")) it else "$it.pdf" }
+                val values = android.content.ContentValues().apply {
+                    put(android.provider.MediaStore.Downloads.DISPLAY_NAME, safeName)
+                    put(android.provider.MediaStore.Downloads.MIME_TYPE, "application/pdf")
+                    put(android.provider.MediaStore.Downloads.IS_PENDING, 1)
+                }
+                val uri = contentResolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                    ?: throw IllegalStateException("No se pudo crear el archivo en Descargas")
+                contentResolver.openOutputStream(uri)?.use { it.write(Base64.decode(base64, Base64.DEFAULT)) }
+                    ?: throw IllegalStateException("No se pudo guardar el PDF")
+                values.clear()
+                values.put(android.provider.MediaStore.Downloads.IS_PENDING, 0)
+                contentResolver.update(uri, values, null, null)
+                runOnUiThread { Toast.makeText(this@MainActivity, "Catálogo guardado en Descargas", Toast.LENGTH_LONG).show() }
+                true
+            } catch (e: Exception) {
+                runOnUiThread { Toast.makeText(this@MainActivity, "No se pudo guardar el catálogo: ${e.message ?: "error Android"}", Toast.LENGTH_LONG).show() }
+                false
+            }
         }
     }
 
