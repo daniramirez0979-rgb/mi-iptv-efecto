@@ -277,8 +277,9 @@ async function catalogPanel(){
      $('catalog_msg').textContent='PDF preparado para compartir. Elegí WhatsApp en el menú del teléfono.';
     }else{
      const url=URL.createObjectURL(result.blob);const a=document.createElement('a');a.href=url;a.download=result.filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);
-     window.open('https://wa.me/?text='+encodeURIComponent('Te comparto '+result.title+' de Efecto Limpio. Adjuntá el PDF que acabás de descargar.'),'_blank');
-     $('catalog_msg').textContent='El teléfono no permite adjuntar el PDF directamente desde esta aplicación. Se descargó el archivo; abrí WhatsApp y adjuntalo al chat.';
+     const wa='https://wa.me/?text='+encodeURIComponent('Te comparto '+result.title+' de Efecto Limpio. El PDF ya se descargó en tu teléfono; adjuntalo desde el clip de WhatsApp.');
+     $('catalog_msg').textContent='PDF descargado. Abriendo WhatsApp para que lo adjuntes al chat…';
+     const link=document.createElement('a');link.href=wa;link.rel='noopener';link.target='_self';document.body.appendChild(link);link.click();link.remove();
     }
    }else{
     const url=URL.createObjectURL(result.blob);const a=document.createElement('a');a.href=url;a.download=result.filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);
