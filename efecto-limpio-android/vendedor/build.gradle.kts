@@ -11,8 +11,8 @@ android {
         applicationId = "ar.com.efectolimpio.vendedor"
         minSdk = 24
         targetSdk = 35
-        versionCode = 8
-        versionName = "1.0.7"
+        versionCode = 9
+        versionName = "1.0.8"
     }
 
     buildTypes {
@@ -24,5 +24,8 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
-    dependencies { implementation("androidx.core:core-ktx:1.15.0") }
+}
+
+dependencies {
+    implementation("androidx.core:core-ktx:1.15.0")
 }
