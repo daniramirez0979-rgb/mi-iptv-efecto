@@ -218,34 +218,29 @@ async function catalogPanel(){
   let y=header(1),page=1;
   for(let i=0;i<products.length;i++){if(y+41>280){page++;y=header(page)}const p=products[i];doc.setFillColor(i%2?255:242,i%2?255:250,i%2?255:255);doc.roundedRect(12,y,186,39,2,2,'F');const img=images[i];if(img)try{doc.addImage(img,String(img).includes('image/png')?'PNG':'JPEG',15,y+3,30,30,undefined,'FAST')}catch(_){}const x=50;doc.setTextColor(21,53,74);doc.setFont('helvetica','bold');doc.setFontSize(10);doc.text(String(p.name||'Producto').slice(0,55),x,y+7);doc.setFont('helvetica','normal');doc.setFontSize(8);const detail=[p.unit,p.description].filter(Boolean).join(' · ');if(detail)doc.text(doc.splitTextToSize(detail,138).slice(0,2),x,y+13);doc.setFont('helvetica','bold');doc.setFontSize(8.5);doc.setTextColor(7,89,133);doc.text('Minorista: '+money(p.retail_price??p.price),x,y+27);doc.setTextColor(8,115,75);doc.text('Mayorista: '+money(p.wholesale_price),x,y+34);y+=41}
   const pages=doc.getNumberOfPages();for(let n=1;n<=pages;n++){doc.setPage(n);doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(90,110,125);doc.text('Efecto Limpio · A-J Distribuciones · WhatsApp 3765-149583',12,289);doc.text('Página '+n+' de '+pages,198,289,{align:'right'})}
-  return {blob:doc.output('blob'),filename:'catalogo-efecto-limpio.pdf',title};
+  return {blob:doc.output('blob'),doc,filename:'catalogo-efecto-limpio.pdf',title};
  }
  $('catalog_share').onclick=async()=>{
   const btn=$('catalog_share'),msg=$('catalog_msg');
   const nativeBridge=window.EfectoNative||window.EfectoDevice;
-  const openChrome=()=>{const target=location.href;location.href='https://www.google.com/url?sa=t&url='+encodeURIComponent(target)};
   btn.disabled=true;
   try{
-   if(!nativeBridge&&!(navigator.share&&navigator.canShare)){
-    msg.textContent='Abriendo el panel en Chrome para compartir el PDF…';
-    openChrome();
-    return;
-   }
    const r=await buildPdf();
    const file=new File([r.blob],r.filename,{type:'application/pdf'});
    if(nativeBridge?.sharePdf){
     const b64=await new Promise((ok,no)=>{const fr=new FileReader();fr.onload=()=>ok(String(fr.result).split(',')[1]);fr.onerror=no;fr.readAsDataURL(r.blob)});
     if(!nativeBridge.sharePdf(b64,r.filename))throw new Error('Android no pudo preparar el archivo para compartir.');
-    msg.textContent='Catálogo adjuntado. Elegí WhatsApp para enviarlo.';
+    msg.textContent='Catálogo listo como PDF. Elegí WhatsApp en la ventana para compartir.';
    }else if(navigator.share&&navigator.canShare?.({files:[file]})){
     await navigator.share({files:[file],title:r.title,text:'Catálogo de Efecto Limpio'});
     msg.textContent='Elegí WhatsApp para enviar el catálogo adjunto.';
    }else{
-    msg.textContent='Abriendo el panel en Chrome para compartir el PDF…';
-    openChrome();
+    r.doc.save(r.filename);
+    msg.textContent='Se preparó el PDF. Si el teléfono lo guarda, abrí Descargas y adjuntá catalogo-efecto-limpio.pdf en WhatsApp. La APK 1.0.3 no permite abrir directamente la ventana nativa de compartir.';
    }
-  }catch(e){msg.textContent='No se pudo compartir: '+(e.message||e)}
+  }catch(e){msg.textContent='No se pudo generar o compartir el PDF: '+(e.message||e)}
   finally{btn.disabled=false}
+}
 }
 }
 async function list(tab){
