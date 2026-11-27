@@ -59,16 +59,17 @@ async function commissionList(){
  view.innerHTML='<h2 class="h">Comisiones de vendedores</h2><p class="muted">Cada comisión se confirma como pagada únicamente cuando vos registrás el pago.</p><p class="muted">Cargando…</p>';
  const {data,error}=await db.from('vendor_commissions').select('*').order('created_at',{ascending:false}).limit(200);
  if(error){view.innerHTML='<h2 class="h">Comisiones de vendedores</h2><p class="muted">'+esc(error.message)+'</p>';return}
- const rows=data||[];
- const vendorIds=[...new Set(rows.map(x=>x.vendor_id).filter(Boolean))];
- const orderIds=[...new Set(rows.map(x=>x.order_id).filter(Boolean))];
+ const allRows=data||[];
+ const vendorIds=[...new Set(allRows.map(x=>x.vendor_id).filter(Boolean))];
+ const orderIds=[...new Set(allRows.map(x=>x.order_id).filter(Boolean))];
  const [pr,orr]=await Promise.all([
   vendorIds.length?db.from('profiles').select('id,full_name').in('id',vendorIds):Promise.resolve({data:[],error:null}),
-  orderIds.length?db.from('orders').select('id,order_number,status').in('id',orderIds):Promise.resolve({data:[],error:null})
+  orderIds.length?db.from('orders').select('id,order_number,status,deleted_at').in('id',orderIds):Promise.resolve({data:[],error:null})
  ]);
  if(pr.error||orr.error){view.innerHTML='<h2 class="h">Comisiones de vendedores</h2><p class="muted">'+esc(pr.error?.message||orr.error?.message)+'</p>';return}
  const names=new Map((pr.data||[]).map(x=>[x.id,x.full_name||'Vendedor']));
  const orders=new Map((orr.data||[]).map(x=>[x.id,x]));
+ const rows=allRows.filter(x=>!(x.voided_at&&orders.get(x.order_id)?.deleted_at));
  const pending=rows.filter(x=>!x.paid_at&&!x.voided_at).reduce((a,x)=>a+Number(x.commission_amount||0),0);
  const paid=rows.filter(x=>x.paid_at&&!x.voided_at).reduce((a,x)=>a+Number(x.commission_amount||0),0);
  view.innerHTML='<div class="row"><h2 class="h">Comisiones de vendedores</h2><button class="secondary" id="refreshcomm">Actualizar</button></div><div class="metrics"><div class="metric"><b>'+money(pending)+'</b><span>Pendiente de pago</span></div><div class="metric"><b>'+money(paid)+'</b><span>Ya pagado</span></div></div>'+
@@ -76,10 +77,19 @@ async function commissionList(){
   const o=orders.get(x.order_id),isPaid=!!x.paid_at,isVoid=!!x.voided_at;
   const state=isVoid?'ANULADA':isPaid?'COMISIÓN PAGADA':'PENDIENTE DE PAGO';
   return '<article style="padding:13px;border:1px solid #c7e5f5;background:#f5fbff;border-radius:13px"><div class="row" style="align-items:flex-start"><div style="min-width:0;flex:1"><b style="color:#075985">'+esc(names.get(x.vendor_id)||'Vendedor')+'</b><div class="muted">Venta N.º '+esc(o?.order_number??'—')+' · '+new Date(x.created_at).toLocaleDateString('es-AR')+'</div></div><b style="font-size:12px;color:'+(isPaid?'#166534':isVoid?'#64748b':'#a16207')+'">'+state+'</b></div><div style="display:flex;justify-content:space-between;gap:10px;margin-top:10px"><span>Venta: <b>'+money(x.sale_amount)+'</b></span><span>Comisión ('+esc(x.commission_rate)+'%): <b>'+money(x.commission_amount)+'</b></span></div>'+
-  (isVoid?'<p class="muted">Esta comisión fue anulada.'+(x.recovery_required?' Requiere recuperar un importe previamente pagado.':'')+'</p>':(isPaid?'<p class="muted" style="margin:8px 0 0">Pagada el '+new Date(x.paid_at).toLocaleString('es-AR')+'. Confirmada por administración.</p>':o?.status==='completed'?'<button class="commission-pay" data-id="'+esc(x.id)+'" style="margin-top:11px;width:100%">✓ Comisión de esta venta pagada</button>':'<p class="muted">Se habilita cuando la venta esté completada.</p>')+'<button class="commission-void" data-id="'+esc(x.id)+'" style="margin-top:8px;width:100%;background:#fff1f2;color:#9f1239;border:1px solid #fecdd3">🗑 Anular comisión de prueba / error</button>')+'</article>';
+  (isVoid?'<p class="muted">Esta comisión fue anulada.'+(x.recovery_required?' Requiere recuperar un importe previamente pagado.':'')+'</p>'+(o&&!o.deleted_at?'<button class="remove-cancelled-sale" data-id="'+esc(o.id)+'" style="margin-top:9px;width:100%;background:#fff1f2;color:#9f1239;border:1px solid #fecdd3">🗑 Borrar venta anulada</button>':''):(isPaid?'<p class="muted" style="margin:8px 0 0">Pagada el '+new Date(x.paid_at).toLocaleString('es-AR')+'. Confirmada por administración.</p>':o?.status==='completed'?'<button class="commission-pay" data-id="'+esc(x.id)+'" style="margin-top:11px;width:100%">✓ Comisión de esta venta pagada</button>':'<p class="muted">Se habilita cuando la venta esté completada.</p>')+'<button class="commission-void" data-id="'+esc(x.id)+'" style="margin-top:8px;width:100%;background:#fff1f2;color:#9f1239;border:1px solid #fecdd3">🗑 Anular comisión de prueba / error</button>')+'</article>';
  }).join('')+'</div>':'<p class="muted">Todavía no hay comisiones registradas.</p>')+'<p class="muted">Se muestran hasta 200 comisiones.</p>';
  $('refreshcomm').onclick=()=>commissionList();
  view.onclick=async e=>{
+  const removeSale=e.target.closest('.remove-cancelled-sale');
+  if(removeSale){
+   if(!confirm('¿Borrar esta venta anulada? Desaparecerá del panel y del historial visible. La constancia de auditoría se conservará internamente.'))return;
+   removeSale.disabled=true;removeSale.textContent='Borrando…';
+   const {data,error}=await db.rpc('admin_remove_test_order',{p_order_id:removeSale.dataset.id,p_reason:'Venta anulada retirada de la vista administrativa'});
+   if(error||!data?.ok){alert('No se pudo borrar la venta: '+(error?.message||data?.message||'Error desconocido'));removeSale.disabled=false;removeSale.textContent='🗑 Borrar venta anulada';return;}
+   alert('Venta borrada de las pantallas del administrador. La auditoría queda conservada.');
+   await commissionList();return;
+  }
   const voidButton=e.target.closest('.commission-void');
   if(voidButton){
    const reason=prompt('Motivo para anular esta comisión:','Comisión de prueba o cargada por error');
