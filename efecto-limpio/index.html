@@ -308,7 +308,7 @@ async function vendors(){
  (d?.status==='pending'?'<button class="device-action" data-action="approve" data-id="'+r.id+'" style="margin-top:10px">Autorizar este teléfono</button>':'')+
  (d?.status==='approved'?'<button class="secondary device-action" data-action="release" data-id="'+r.id+'" style="margin-top:10px">Liberar dispositivo / cambio de teléfono</button>':'')+
  (d?.status==='released'?'<span class="muted">El vendedor puede registrar su nuevo teléfono al volver a ingresar.</span>':'')+'</div>'+
- '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:13px">'+(status==='removed'?'<span class="muted">Acceso retirado</span>':(enabled?'<button class="secondary vendor-action" data-action="block" data-id="'+r.id+'">Bloquear</button><button class="secondary vendor-action" data-action="suspend" data-id="'+r.id+'">Pausar acceso</button>':'<button class="secondary vendor-action" data-action="enable" data-id="'+r.id+'">Habilitar acceso</button>')+'<button class="danger vendor-action" data-action="remove" data-id="'+r.id+'">Eliminar acceso</button>')+'</div></article>';
+ '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:13px">'+(status==='removed'?'<span class="muted">Acceso retirado</span>':(enabled?'<button class="secondary vendor-action" data-action="block" data-id="'+r.id+'">🔒 Bloquear acceso</button>':'<button class="secondary vendor-action" data-action="enable" data-id="'+r.id+'">✓ Habilitar acceso</button>')+'<button class="danger vendor-action" data-action="remove" data-id="'+r.id+'">Dar de baja definitivamente</button>')+'</div></article>';
  }).join('')+'</div>':'<p class="muted">Todavía no hay vendedores. Tocá “Crear vendedor” para dar de alta el primero.</p>')+'<p class="muted">Liberar no borra ventas ni comisiones. El teléfono anterior deja de estar autorizado y el siguiente debe aprobarse.</p>';
  $('addvendor').onclick=()=>$('vendorform').classList.toggle('hidden');$('cancelvendor').onclick=()=>$('vendorform').classList.add('hidden');
  $('savevendor').onclick=async()=>{
@@ -328,7 +328,7 @@ async function vendors(){
  });
  document.querySelectorAll('.vendor-action').forEach(b=>b.onclick=async()=>{
   const action=b.dataset.action,id=b.dataset.id;
-  const prompts={block:'¿Bloquear este vendedor? Se cerrará su sesión y no podrá volver a ingresar.',suspend:'¿Pausar el acceso de este vendedor? Se cerrará su sesión hasta que lo habilites.',enable:'¿Habilitar nuevamente el acceso de este vendedor?',remove:'¿Eliminar el acceso de este vendedor? Se conservarán sus ventas y comisiones, pero no podrá volver a entrar.'};
+  const prompts={block:'¿Bloquear el acceso de este vendedor? Se cerrará su sesión. Podrás habilitarlo nuevamente cuando quieras. Sus datos e historial se conservan.',suspend:'¿Pausar el acceso de este vendedor?',enable:'¿Habilitar nuevamente el acceso? El vendedor podrá ingresar y trabajar normalmente.',remove:'¿Dar de baja definitivamente a este vendedor? Ya no podrá ingresar ni aparecerá entre los vendedores activos. Sus ventas y comisiones se conservarán para auditoría. Esta acción no elimina el historial.'};
   if(!confirm(prompts[action]))return;b.disabled=true;
   const {data,error}=await db.functions.invoke('manage-vendor-access',{body:{vendor_id:id,action}});
   if(error||!data?.ok){alert('No se pudo cambiar el acceso: '+(data?.error||error?.message||'Error desconocido'));b.disabled=false;return}
