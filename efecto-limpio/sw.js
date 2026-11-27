@@ -1,5 +1,5 @@
-const CACHE = "efecto-limpio-shell-v15";
-const SHELL = ["./manifest.webmanifest", "/mi-iptv-efecto/efecto-limpio/app-icon.svg?v=15"];
+const CACHE = "efecto-limpio-shell-v16";
+const SHELL = ["./manifest.webmanifest", "/mi-iptv-efecto/efecto-limpio/app-icon.svg?v=16"];
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)));
   self.skipWaiting();
